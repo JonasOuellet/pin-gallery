@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "module": "CommonJS",
+        "target": "ES6",
+        "noImplicitAny": true,
+        "removeComments": true,
+        "preserveConstEnums": true,
+        "sourceMap": true,
+        "outDir": "../static/js",
+        "esModuleInterop": true,
+        "strict": true,
+        "forceConsistentCasingInFileNames": true,
+    },
+
+    "files": [
+        "take_photo.ts"
+    ]
+    // "include": ["./**/*"],
+    // "exclude": ["./**/*.spec.ts", "../node_modules/**/*"]
+  }

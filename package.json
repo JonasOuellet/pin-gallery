@@ -1,0 +1,22 @@
+{
+  "name": "pin-gallery",
+  "version": "1.0.0",
+  "description": "Gallery for pins",
+  "main": "out/index.js",
+  "scripts": {
+    "watch": "tsc --watch -p ./src",
+    "compile": "tsc -p ./src && tsc -p ./frontend",
+    "start": "node ./out/index.js"
+  },
+  "author": "Jonathan Ouellet",
+  "license": "ISC",
+  "dependencies": {
+    "ejs": "^3.1.9",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.9.4",
+    "typescript": "^5.3.2"
+  }
+}
