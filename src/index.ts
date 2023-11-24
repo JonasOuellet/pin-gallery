@@ -1,7 +1,7 @@
 import bodyParser from 'body-parser';
-import express, { Express, Request, Response } from "express";
+import express from "express";
 import expressWinston from 'express-winston';
-import fetch from 'node-fetch';
+import * as fetch from 'node-fetch';
 import http from 'http';
 import passport from 'passport';
 // import {Strategy as GoogleOAuthStrategy} from 'passport-google-oauth20';
@@ -13,9 +13,61 @@ import winston from 'winston';
 import { auth } from './auth.js';
 import { config } from './config.js';
 
-const app: Express = express();
+interface Date {
+    year: string,
+    month: string,
+    day: string
+}
+
+interface LibraryGet {
+    error: StatusError | null
+}
+
+interface LibraryGetAlbums extends LibraryGet{
+    albums: string[],
+    parameters: any,
+}
+
+interface LibraryGetPhotos extends LibraryGet {
+    photos: string[],
+    parameters: any,
+}
+
+interface ContentFilter {
+    includedContentCategories?: string[],
+    excludedContentCategories?: string[]
+}
+
+interface MediaFilter {
+    mediaTypes: string[]
+}
+
+interface DateRanges {
+    startDate: Date,
+    endDate: Date
+}
+
+interface DateFilter {
+    dates?: Date,
+    ranges?: DateRanges[]
+}
+
+
+interface SearchFilter {
+    contentFilter: ContentFilter,
+    mediaTypeFilter?: MediaFilter
+    dateFilter?: DateFilter
+}
+
+interface SearchParameters {
+    filters?: SearchFilter
+    albumId?: string,
+    pageToken?: any,
+    pageSize?: any
+}
+
+const app: express.Express = express();
 const fileStore = sessionFileStore(session);
-const server = new http.Server(app);
 
 app.set("view engine", "ejs");
 
@@ -143,7 +195,7 @@ app.use(passport.session());
 
 // Middleware that adds the user of this session as a local variable,
 // so it can be displayed on all pages when logged in.
-app.use((req: any, res: Response, next) => {
+app.use((req: any, res: express.Response, next) => {
     res.locals.name = '-';
     if (req.user && req.user.profile && req.user.profile.name) {
         res.locals.name =
@@ -161,14 +213,22 @@ app.use((req: any, res: Response, next) => {
 // GET request to the root.
 // Display the login screen if the user is not logged in yet, otherwise the
 // photo frame.
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (req: express.Request, res: express.Response) => {
     if (!req.user || !req.isAuthenticated()) {
-      // Not logged in yet.
-      res.render('login');
+        // Not logged in yet.
+        res.render('login');
     } else {
-      res.render('index');
+        res.render('pages/frame');
     }
-  });
+});
+
+// GET request to log out the user.
+// Destroy the current session and redirect back to the log in screen.
+app.get('/logout', (req: any, res: express.Response) => {
+    req.logout();
+    req.session.destroy();
+    res.redirect('/');
+});
 
 
 // Star the OAuth login process for Google.
@@ -179,8 +239,432 @@ app.get('/auth/google', passport.authenticate('google', {
 }));
 
 
+// Callback receiver for the OAuth process after log in.
+app.get(
+    '/auth/google/callback',
+    passport.authenticate(
+        'google', { failureRedirect: '/', failureFlash: true, session: true }),
+    (req, res) => {
+        // User has logged in.
+        logger.info('User has logged in.');
+        req.session.save(() => {
+            res.redirect('/');
+        });
+    });
+
+// Loads the search page if the user is authenticated.
+// This page includes the search form.
+app.get('/search', (req, res) => {
+    renderIfAuthenticated(req, res, 'pages/search');
+});
+
+// Loads the album page if the user is authenticated.
+// This page displays a list of albums owned by the user.
+app.get('/album', (req, res) => {
+    renderIfAuthenticated(req, res, 'pages/album');
+});
+
+// Handles form submissions from the search page.
+// The user has made a selection and wants to load photos into the photo frame
+// from a search query.
+// Construct a filter and submit it to the Library API in
+// libraryApiSearch(authToken, parameters).
+// Returns a list of media items if the search was successful, or an error
+// otherwise.
+app.post('/loadFromSearch', async (req: any, res: any) => {
+    const authToken = req.user.token;
+
+    logger.info('Loading images from search.');
+    logger.silly('Received form data: ', req.body);
+
+    // Construct a filter for photos.
+    // Other parameters are added below based on the form submission.
+    const filters: SearchFilter = { 
+        contentFilter: {}, 
+        mediaTypeFilter: { 
+            mediaTypes: ['PHOTO'] 
+        } 
+    };
+
+    if (req.body.includedCategories) {
+        // Included categories are set in the form. Add them to the filter.
+        filters.contentFilter.includedContentCategories =
+            [req.body.includedCategories];
+    }
+
+    if (req.body.excludedCategories) {
+        // Excluded categories are set in the form. Add them to the filter.
+        filters.contentFilter.excludedContentCategories =
+            [req.body.excludedCategories];
+    }
+
+    // Add a date filter if set, either as exact or as range.
+    if (req.body.dateFilter == 'exact') {
+        filters.dateFilter = {
+            dates: constructDate(
+                req.body.exactYear, req.body.exactMonth, req.body.exactDay),
+        }
+    } else if (req.body.dateFilter == 'range') {
+        filters.dateFilter = {
+            ranges: [{
+                startDate: constructDate(
+                    req.body.startYear, req.body.startMonth, req.body.startDay),
+                endDate:
+                    constructDate(req.body.endYear, req.body.endMonth, req.body.endDay),
+            }]
+        }
+    }
+
+    // Create the parameters that will be submitted to the Library API.
+    const parameters: SearchParameters = { filters };
+
+    // Submit the search request to the API and wait for the result.
+    const data = await libraryApiSearch(authToken, parameters);
+
+    // Return and cache the result and parameters.
+    const userId = req.user.profile.id;
+    returnPhotos(res, userId, data, parameters);
+});
+
+
+// Handles selections from the album page where an album ID is submitted.
+// The user has selected an album and wants to load photos from an album
+// into the photo frame.
+// Submits a search for all media items in an album to the Library API.
+// Returns a list of photos if this was successful, or an error otherwise.
+app.post('/loadFromAlbum', async (req: any, res: any) => {
+    const albumId = req.body.albumId;
+    const userId = req.user.profile.id;
+    const authToken = req.user.token;
+
+    logger.info(`Importing album: ${albumId}`);
+
+    // To list all media in an album, construct a search request
+    // where the only parameter is the album ID.
+    // Note that no other filters can be set, so this search will
+    // also return videos that are otherwise filtered out in libraryApiSearch(..).
+    const parameters = { albumId };
+
+    // Submit the search request to the API and wait for the result.
+    const data = await libraryApiSearch(authToken, parameters);
+
+    returnPhotos(res, userId, data, parameters)
+});
+
+
+// Returns all albums owned by the user.
+app.get('/getAlbums', async (req: any, res: any) => {
+    logger.info('Loading albums');
+    const userId = req.user.profile.id;
+
+    // Attempt to load the albums from cache if available.
+    // Temporarily caching the albums makes the app more responsive.
+    const cachedAlbums = await albumCache.getItem(userId);
+    if (cachedAlbums) {
+        logger.verbose('Loaded albums from cache.');
+        res.status(200).send(cachedAlbums);
+    } else {
+        logger.verbose('Loading albums from API.');
+        // Albums not in cache, retrieve the albums from the Library API
+        // and return them
+        const data = await libraryApiGetAlbums(req.user.token);
+        if (data.error) {
+            // Error occured during the request. Albums could not be loaded.
+            returnError(res, data);
+            // Clear the cached albums.
+            albumCache.removeItem(userId);
+        } else {
+            // Albums were successfully loaded from the API. Cache them
+            // temporarily to speed up the next request and return them.
+            // The cache implementation automatically clears the data when the TTL is
+            // reached.
+            res.status(200).send(data);
+            albumCache.setItem(userId, data);
+        }
+    }
+});
+
+
+// Returns a list of the media items that the user has selected to
+// be shown on the photo frame.
+// If the media items are still in the temporary cache, they are directly
+// returned, otherwise the search parameters that were used to load the photos
+// are resubmitted to the API and the result returned.
+app.get('/getQueue', async (req: any, res: any) => {
+    const userId = req.user.profile.id;
+    const authToken = req.user.token;
+
+    logger.info('Loading queue.');
+
+    // Attempt to load the queue from cache first. This contains full mediaItems
+    // that include URLs. Note that these expire after 1 hour. The TTL on this
+    // cache has been set to this limit and it is cleared automatically when this
+    // time limit is reached. Caching this data makes the app more responsive,
+    // as it can be returned directly from memory whenever the user navigates
+    // back to the photo frame.
+    const cachedPhotos = await mediaItemCache.getItem(userId);
+    const stored = await storage.getItem(userId);
+
+    if (cachedPhotos) {
+        // Items are still cached. Return them.
+        logger.verbose('Returning cached photos.');
+        res.status(200).send({ photos: cachedPhotos, parameters: stored.parameters });
+    } else if (stored && stored.parameters) {
+        // Items are no longer cached. Resubmit the stored search query and return
+        // the result.
+        logger.verbose(
+            `Resubmitting filter search ${JSON.stringify(stored.parameters)}`);
+        const data = await libraryApiSearch(authToken, stored.parameters);
+        returnPhotos(res, userId, data, stored.parameters);
+    } else {
+        // No data is stored yet for the user. Return an empty response.
+        // The user is likely new.
+        logger.verbose('No cached data.')
+        res.status(200).send({});
+    }
+});
+
+
+// Renders the given page if the user is authenticated.
+// Otherwise, redirects to "/".
+function renderIfAuthenticated(req: express.Request, res: express.Response, page: string) {
+    if (!req.user || !req.isAuthenticated()) {
+        res.redirect('/');
+    } else {
+        res.render(page);
+    }
+}
+
+
+// If the supplied result is succesful, the parameters and media items are
+// cached.
+// Helper method that returns and caches the result from a Library API search
+// query returned by libraryApiSearch(...). If the data.error field is set,
+// the data is handled as an error and not cached. See returnError instead.
+// Otherwise, the media items are cached, the search parameters are stored
+// and they are returned in the response.
+function returnPhotos(res: express.Response, userId: string, data: LibraryGetPhotos, searchParameter: SearchParameters) {
+    if (data.error) {
+        returnError(res, data)
+    } else {
+        // Remove the pageToken and pageSize from the search parameters.
+        // They will be set again when the request is submitted but don't need to be
+        // stored.
+        delete searchParameter.pageToken;
+        delete searchParameter.pageSize;
+
+        // Cache the media items that were loaded temporarily.
+        mediaItemCache.setItem(userId, data.photos);
+        // Store the parameters that were used to load these images. They are used
+        // to resubmit the query after the cache expires.
+        storage.setItem(userId, { parameters: searchParameter });
+
+        // Return the photos and parameters back int the response.
+        res.status(200).send({ photos: data.photos, parameters: searchParameter });
+    }
+}
+
+// Responds with an error status code and the encapsulated data.error.
+function returnError(res: express.Response, data: LibraryGet) {
+    // Return the same status code that was returned in the error or use 500
+    // otherwise.
+    if (data.error === null) {
+        return;
+    }
+    const statusCode = data.error.status || 500;
+    // Return the error.
+    res.status(statusCode).send(JSON.stringify(data.error));
+}
+
+// Constructs a date object required for the Library API.
+// Undefined parameters are not set in the date object, which the API sees as a
+// wildcard.
+function constructDate(
+    year: string | null,
+    month: string | null,
+    day: string | null
+) : Date {
+    const date: Date = {
+        year: "",
+        month: "",
+        day: "",
+    };
+    if (year) date.year = year;
+    if (month) date.month = month;
+    if (day) date.day = day;
+    return date;
+}
+
+// Submits a search request to the Google Photos Library API for the given
+// parameters. The authToken is used to authenticate requests for the API.
+// The minimum number of expected results is configured in config.photosToLoad.
+// This function makes multiple calls to the API to load at least as many photos
+// as requested. This may result in more items being listed in the response than
+// originally requested.
+async function libraryApiSearch(authToken: string, parameters: any) : Promise<LibraryGetPhotos> {
+    let photos: any[] = [];
+    let nextPageToken = null;
+    let error = null;
+
+    parameters.pageSize = config.searchPageSize;
+
+    try {
+        // Loop while the number of photos threshold has not been met yet
+        // and while there is a nextPageToken to load more items.
+        do {
+            logger.info(
+                `Submitting search with parameters: ${JSON.stringify(parameters)}`);
+
+            // Make a POST request to search the library or album
+            const searchResponse =
+                await fetch.default(config.apiEndpoint + '/v1/mediaItems:search', {
+                    method: 'post',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(parameters)
+                });
+
+            const result = await checkStatus(searchResponse);
+
+            logger.debug(`Response: ${result}`);
+
+            // The list of media items returned may be sparse and contain missing
+            // elements. Remove all invalid elements.
+            // Also remove all elements that are not images by checking its mime type.
+            // Media type filters can't be applied if an album is loaded, so an extra
+            // filter step is required here to ensure that only images are returned.
+            const items = result && result.mediaItems ?
+                result.mediaItems
+                    .filter((x: any) => x)  // Filter empty or invalid items.
+                    // Only keep media items with an image mime type.
+                    .filter((x: any) => x.mimeType && x.mimeType.startsWith('image/')) :
+                [];
+
+            photos = photos.concat(items);
+
+            // Set the pageToken for the next request.
+            parameters.pageToken = result.nextPageToken;
+
+            logger.verbose(
+                `Found ${items.length} images in this request. Total images: ${photos.length}`);
+
+            // Loop until the required number of photos has been loaded or until there
+            // are no more photos, ie. there is no pageToken.
+        } while (photos.length < config.photosToLoad &&
+            parameters.pageToken != null);
+
+    } catch (err: any) {
+        // Log the error and prepare to return it.
+        error = err;
+        logger.error(error);
+    }
+
+    logger.info('Search complete.');
+    return {
+       photos: photos,
+       parameters: parameters,
+       error: error 
+    };
+}
+
+// Returns a list of all albums owner by the logged in user from the Library
+// API.
+async function libraryApiGetAlbums(authToken: string) : Promise<LibraryGetAlbums> {
+    let albums: string[] = [];
+    let nextPageToken = null;
+    let error = null;
+
+    let parameters = new URLSearchParams();
+    parameters.append('pageSize', config.albumPageSize.toString());
+
+    try {
+        // Loop while there is a nextpageToken property in the response until all
+        // albums have been listed.
+        do {
+            logger.verbose(`Loading albums. Received so far: ${albums.length}`);
+            // Make a GET request to load the albums with optional parameters (the
+            // pageToken if set).
+            const albumResponse = await fetch.default(config.apiEndpoint + '/v1/albums?' + parameters, {
+                method: 'get',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + authToken
+                },
+            });
+
+            const result = await checkStatus(albumResponse);
+
+            logger.debug(`Response: ${result}`);
+
+            if (result && result.albums) {
+                logger.verbose(`Number of albums received: ${result.albums.length}`);
+                // Parse albums and add them to the list, skipping empty entries.
+                const items = result.albums.filter( (x: any) => { return !!x } );
+
+                albums = albums.concat(items);
+            }
+            if (result.nextPageToken) {
+                parameters.set('pageToken', result.nextPageToken);
+            } else {
+                parameters.delete('pageToken');
+            }
+
+            // Loop until all albums have been listed and no new nextPageToken is
+            // returned.
+        } while (parameters.has('pageToken'));
+
+    } catch (err: any) {
+        // Log the error and prepare to return it.
+        error = err;
+        logger.error(error);
+    }
+
+    logger.info('Albums loaded.');
+    return { 
+        albums: albums,
+        parameters: parameters,
+        error: error
+    };
+}
+
+// Return the body as JSON if the request was successful, or thrown a StatusError.
+async function checkStatus(response: fetch.Response) : Promise<any> {
+    if (!response.ok) {
+        // Throw a StatusError if a non-OK HTTP status was returned.
+        let message: any = "";
+        try {
+            // Try to parse the response body as JSON, in case the server returned a useful response.
+            message = await response.json();
+        } catch (err) {
+            // Ignore if no JSON payload was retrieved and use the status text instead.
+        }
+        throw new StatusError(response.status, response.statusText, message);
+    }
+
+    // If the HTTP status is OK, return the body as JSON.
+    return await response.json();
+}
+
+// Custom error that contains a status, title and a server message.
+class StatusError extends Error {
+    status: number;
+    statusTitle: string;
+    serverMessage: any;
+
+    constructor(status: number, title: string, serverMessage: any, ...params: any[]) {
+        super(...params)
+        this.status = status;
+        this.statusTitle = title;
+        this.serverMessage = serverMessage;
+    }
+}
+
+
 app.listen(8080, () => {
     console.log("Listening on port 8080");
 });
+
 
 

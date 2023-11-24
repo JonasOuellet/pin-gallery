@@ -12,9 +12,6 @@
         "forceConsistentCasingInFileNames": true,
     },
 
-    "files": [
-        "take_photo.ts"
-    ]
-    // "include": ["./**/*"],
-    // "exclude": ["./**/*.spec.ts", "../node_modules/**/*"]
+    "include": ["./**/*"],
+    "exclude": ["./**/*.spec.ts", "../node_modules/**/*"]
   }
