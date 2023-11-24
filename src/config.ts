@@ -55,6 +55,7 @@ export let config: Config = {
     port: 8080,
     scopes: [
         'https://www.googleapis.com/auth/photoslibrary.readonly',
+        'https://www.googleapis.com/auth/photoslibrary.appendonly',
         'profile',
     ],
     photosToLoad: 150,

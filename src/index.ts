@@ -2,7 +2,7 @@ import bodyParser from 'body-parser';
 import express from "express";
 import expressWinston from 'express-winston';
 import * as fetch from 'node-fetch';
-import http from 'http';
+import * as multer from 'multer';
 import passport from 'passport';
 // import {Strategy as GoogleOAuthStrategy} from 'passport-google-oauth20';
 import persist from 'node-persist';
@@ -13,58 +13,6 @@ import winston from 'winston';
 import { auth } from './auth.js';
 import { config } from './config.js';
 
-interface Date {
-    year: string,
-    month: string,
-    day: string
-}
-
-interface LibraryGet {
-    error: StatusError | null
-}
-
-interface LibraryGetAlbums extends LibraryGet{
-    albums: string[],
-    parameters: any,
-}
-
-interface LibraryGetPhotos extends LibraryGet {
-    photos: string[],
-    parameters: any,
-}
-
-interface ContentFilter {
-    includedContentCategories?: string[],
-    excludedContentCategories?: string[]
-}
-
-interface MediaFilter {
-    mediaTypes: string[]
-}
-
-interface DateRanges {
-    startDate: Date,
-    endDate: Date
-}
-
-interface DateFilter {
-    dates?: Date,
-    ranges?: DateRanges[]
-}
-
-
-interface SearchFilter {
-    contentFilter: ContentFilter,
-    mediaTypeFilter?: MediaFilter
-    dateFilter?: DateFilter
-}
-
-interface SearchParameters {
-    filters?: SearchFilter
-    albumId?: string,
-    pageToken?: any,
-    pageSize?: any
-}
 
 const app: express.Express = express();
 const fileStore = sessionFileStore(session);
@@ -180,6 +128,25 @@ app.use('/js', express.static("./node_modules/jquery/dist/"));
 app.use('/fancybox', express.static('./node_modules/@fancyapps/fancybox/dist/'));
 app.use('/mdlite', express.static('./node_modules/material-design-lite/dist/'));
 
+
+const multerStorage = multer.diskStorage({
+    destination: (req: express.Request, file: Express.Multer.File, cb) => {
+        cb(null, "./uploads/")
+    },
+    filename: (req: express.Request, file: Express.Multer.File, cb) => {
+        let splitted = file.mimetype.split('/');
+        if (splitted[0] === "image") {
+            // let ext = splitted[1];
+            cb(null, file.originalname);
+        }
+        else {
+            cb(new Error(`Invalid mime type: (${splitted[0]})`), "");
+        }
+    }
+});
+const multerMemoryStorage = multer.memoryStorage();
+const upload = multer.default({storage: multerMemoryStorage});
+
 // Parse application/json request data.
 app.use(bodyParser.json());
 
@@ -224,10 +191,12 @@ app.get('/', (req: express.Request, res: express.Response) => {
 
 // GET request to log out the user.
 // Destroy the current session and redirect back to the log in screen.
-app.get('/logout', (req: any, res: express.Response) => {
-    req.logout();
-    req.session.destroy();
-    res.redirect('/');
+app.get('/logout', (req: any, res: express.Response, next) => {
+    req.logout((err: any) => {
+        if (err) { return next(err); }
+        req.session.destroy();
+        res.redirect('/');
+    });
 });
 
 
@@ -249,8 +218,77 @@ app.get(
         logger.info('User has logged in.');
         req.session.save(() => {
             res.redirect('/');
-        });
     });
+});
+
+
+app.get('/add', (req: express.Request, res: express.Response) => {
+    renderIfAuthenticated(req, res, "index");
+});
+
+
+
+app.post('/newimage', upload.single('image'), async (req: express.Request, res: express.Response, next) => {
+    const authToken: string = (req as any).user.token;
+    let file = req.file;
+    if (file === undefined) {
+        // TODO: handle error here
+        return;
+    }
+
+    fetch.default(
+        config.apiEndpoint + '/v1/uploads',
+        {
+            method: 'post',
+            headers: {
+                'Content-Type': 'application/octet-stream',
+                'Authorization': 'Bearer ' + authToken,
+                'X-Goog-Upload-Content-Type': file.mimetype,
+                'X-Goog-Upload-Protocol': 'raw'
+            },
+            body: file.buffer
+        }
+    ).then(async (res: fetch.Response) => {
+        if (res.status === 200) {
+            return res.text();
+        }
+        return Promise.reject(new Error(`Error uploading image.  Status code: ${res.status}`));
+    }).then(async (uploadtoken: string) => {
+       return fetch.default(
+            config.apiEndpoint + '/v1/mediaItems:batchCreate',
+            {
+                method: 'post',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + authToken,
+                },
+                body: JSON.stringify({
+                    newMediaItems: [
+                        {
+                            description: "Belle photo de moi",
+                            simpleMediaItem: {
+                                fileName: (file as Express.Multer.File).originalname,
+                                uploadToken: uploadtoken
+                            }
+                        }
+                    ]
+                })
+            }
+       );
+    }).then(async (res: fetch.Response) => {
+        if (res.status !== 200) {
+            return Promise.reject(new Error(`Error creating new media.  Status code: ${res.status}`));
+        }
+        let mediaResults: NewMediaItemResults = await res.json();
+        mediaResults.newMediaItemResults.forEach((newItem) => {
+            console.log(`${newItem.mediaItem.filename} successfully uploaded.`);
+        })
+    }).catch((err: any) => {
+        // TODO: handle error here:
+        console.log("Error occured", err);
+    });
+});
+
 
 // Loads the search page if the user is authenticated.
 // This page includes the search form.
@@ -483,8 +521,8 @@ function constructDate(
     year: string | null,
     month: string | null,
     day: string | null
-) : Date {
-    const date: Date = {
+) : PGDate {
+    const date: PGDate = {
         year: "",
         month: "",
         day: "",
@@ -647,24 +685,9 @@ async function checkStatus(response: fetch.Response) : Promise<any> {
     return await response.json();
 }
 
-// Custom error that contains a status, title and a server message.
-class StatusError extends Error {
-    status: number;
-    statusTitle: string;
-    serverMessage: any;
-
-    constructor(status: number, title: string, serverMessage: any, ...params: any[]) {
-        super(...params)
-        this.status = status;
-        this.statusTitle = title;
-        this.serverMessage = serverMessage;
-    }
-}
-
-
 app.listen(8080, () => {
     console.log("Listening on port 8080");
 });
 
 
-
+// check socket IO.

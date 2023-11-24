@@ -18,56 +18,56 @@
 // Library API.
 function importFilter(filter: any) {
     $.ajax({
-      type: 'POST',
-      url: '/loadFromSearch',
-      dataType: 'json',
-      data: filter,
-      success: (data) => {
-        console.log('Loaded photos successfully.');
-        if (data.photos && data.photos.length > 0) {
-          // If the request was successful and images were loaded,
-          // go back to the preview screen that shows the grid of images queued
-          // for display.
-          window.location.assign('/');
-        } else {
-          handleError('No images found', 'Try different search parameters.');
-        }
-        hideLoadingDialog();
-      },
-      error: (data) => {
-        handleError('Couldn\'t load images.', data);
-      },
+        type: 'POST',
+        url: '/loadFromSearch',
+        dataType: 'json',
+        data: filter,
+        success: (data) => {
+            console.log('Loaded photos successfully.');
+            if (data.photos && data.photos.length > 0) {
+                // If the request was successful and images were loaded,
+                // go back to the preview screen that shows the grid of images queued
+                // for display.
+                window.location.assign('/');
+            } else {
+                handleError('No images found', 'Try different search parameters.');
+            }
+            hideLoadingDialog();
+        },
+        error: (data) => {
+            handleError('Couldn\'t load images.', data);
+        },
     });
-  }
-  
-  $(() => {
+}
+
+$(() => {
     // Show date filter options based on which date filter type is selected.
     $('input[name$=\'dateFilter\']').on('click', (e) => {
-      const range = '#rowDateRange';
-      const exact = '#rowDateExact';
-  
-      switch ($(e.currentTarget).val()) {
-        case 'none':
-          $(range).hide();
-          $(exact).hide();
-          break;
-        case 'exact':
-          $(range).hide();
-          $(exact).show();
-          break;
-  
-        case 'range':
-          $(range).show();
-          $(exact).hide();
-          break;
-      }
+        const range = '#rowDateRange';
+        const exact = '#rowDateExact';
+
+        switch ($(e.currentTarget).val()) {
+            case 'none':
+                $(range).hide();
+                $(exact).hide();
+                break;
+            case 'exact':
+                $(range).hide();
+                $(exact).show();
+                break;
+
+            case 'range':
+                $(range).show();
+                $(exact).hide();
+                break;
+        }
     });
-  
+
     // When the filter form is submitted, serialize its contents, show the loading
     // dialog and submit the request to the backend.
     $('#filter').on('submit', (e) => {
-      e.preventDefault();
-      showLoadingDialog();
-      importFilter($('#filter').serialize())
+        e.preventDefault();
+        showLoadingDialog();
+        importFilter($('#filter').serialize())
     });
-  });
+});

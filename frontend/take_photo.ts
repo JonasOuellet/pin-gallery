@@ -1,3 +1,4 @@
+
 function getElemById<T>(id: string): T {
     let elem = document.getElementById(id);
     if (elem === null) {
@@ -97,9 +98,23 @@ class PhotoCapture {
             this.canvas.width = this.width;
             this.canvas.height = this.height;
             context.drawImage(this.video, 0, 0, this.width, this.height);
-            
-            const data = this.canvas.toDataURL("image/png");
-            this.photo.setAttribute("src", data);
+            // https://stackoverflow.com/questions/23511792/attach-a-blob-to-an-input-of-type-file-in-a-form
+            this.canvas.toBlob((result: Blob | null) => {
+                if (result === null) {
+                    // handle error here.
+                    return;
+                }
+                let file = new File([result], "new_pin.png", {type: "image/png", lastModified: new Date().getTime()});
+                let container = new DataTransfer();
+                container.items.add(file);
+                let elem = getElemById<HTMLInputElement>("image_input");
+                elem.files = container.files;
+            },
+            // need to also test jpeg.  which one is smaller.
+            "image/png",
+            // the quality for jpeg image
+            1 
+            );
         } else {
             this.clearPhoto();
         }

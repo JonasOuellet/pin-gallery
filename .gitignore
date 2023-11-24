@@ -6,3 +6,4 @@ persist-albumcache
 persist-mediaitemcache
 persist-storage
 sessions
+uploads

@@ -1,23 +1,30 @@
-<!DOCTYPE html>
-<html>
+<%- include('./partials/head') %>
 
-<head>
-	<title>Pin Gallery</title>
-</head>
+<%- include('./partials/dialogs') %>
+<section class="sample-content">
+    <h2>Upload new Image</h2>
+    <p class="subhead mdl-color-text--grey-700">Add new image to the gallery.</p>
+    <ul class="mdl-list" id="albums"></ul>
+</section>
 
-<body>
-    <p>Hello From Pin Gallery</p>
+<div class="camera">
+    <video id="video">Video stream not available.</video>
+    <button id="startbutton">Take a photo</button>
+</div>
+<canvas id="canvas"> </canvas>
+<div class="output">
+    <img id="photo" alt="The screen capture will appear in this box." />
+</div>
 
-    <div class="camera">
-        <video id="video">Video stream not available.</video>
-        <button id="startbutton">Take a photo</button>
+<form action="/newimage" enctype="multipart/form-data" method="post">
+    <div class="form-group">
+      <input type="file" name="image", id="image_input">
+      <input type="text" placeholder="newimage.jpeg" name="image_name">
+      <input type="submit" value="Upload">
     </div>
-    <canvas id="canvas"> </canvas>
-    <div class="output">
-        <img id="photo" alt="The screen capture will appear in this box." />
-    </div>
+  </form>
 
-    <script src="js/take_photo.js"></script>
-</body>
+<%- include('./partials/js') %>
+<script src="js/take_photo.js"></script>
 
-</html>
+<%- include('./partials/footer') %>
