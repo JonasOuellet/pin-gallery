@@ -5,7 +5,6 @@
 	<!-- Required meta tags -->
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
 	<!-- Roboto Font-->
 	<link rel="stylesheet" href="http://fonts.googleapis.com/css?family=Roboto:300,400,500,700" type="text/css">
 
@@ -16,45 +15,57 @@
 	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
 	<link rel="stylesheet" href="/mdlite/material.indigo-pink.min.css">
+
+    <link rel="stylesheet" href="/css/frame.css">
 	
 	<script src="/mdlite/material.min.js"></script>
-
-	<link rel="stylesheet" href="/css/frame.css">
+	<!-- <link rel="stylesheet" href="/css/frame.css"> -->
 	
-	<title>Photo Frame sample</title>
+	<title>Collectionneurs</title>
 </head>
 
 <body>
-	<!-- Always shows a header, even in smaller screens. -->
-	<div class="mdl-layout--fixed-header mdl-js-layout">
-		<header class="mdl-layout__header mdl-layout__header--waterfall">
-			<div class="mdl-layout__header-row">
-				<!-- Title -->
-				<span class="mdl-layout-title">Photo Frame Sample</span>
-				<!-- Add spacer, to align avatar/disconnect to the right -->
-				<div class="mdl-layout-spacer"></div>
-				<nav class="mdl-navigation">
-					<img src=" <%= avatarUrl %>" id="userAvatar" />
-					 <%= name %>
-					<a class="mdl-navigation__link" href="/logout">Disconnect</a>
-				</nav>
-			</div>
-			<div class="mdl-layout__header-row">
-				<!-- Navigation -->
-				<nav class="mdl-navigation">
-					<a class="mdl-navigation__link" href="/">PREVIEW</a>
-					<a class="mdl-navigation__link" href="/search">SEARCH</a>
-					<a class="mdl-navigation__link" href="/album">ALBUMS</a>
-					<a class="mdl-navigation__link" href="/add">ADD</a>
-				</nav>
-			</div>
-		</header>
+    <div class="mdl-layout mdl-js-layout">
+        <header class="mdl-layout__header">
+            <div class="mdl-layout-icon"></div>
+            <div class="mdl-layout__header-row">
+                <nav class="mdl-navigation">
+                    <a class="mdl-navigation__link" href="/">Explorer</a>
+					<% if (loggedIn) { %>
+						<a class="mdl-navigation__link" href="/collections">Mes Collections</a>
+						<a class="mdl-navigation__link" href="/add">Ajouter</a>
+					<% } %>
+                </nav>
+                <div class="mdl-layout-spacer"></div>
+                <span style="margin-right: 10px;">Mon Profile</span>
+                <button
+                    id="profile-menu"
+                    class="mdl-button mdl-js-button mdl-button--icon">
+					<% if (loggedIn) { %>
+						<img class="mdl-chip__contact" src="<%= avatarUrl %>"></img>
+					<% } else { %>
+						<i class="material-icons">more_vert</i>
+					<% } %>
+                </button>
 
-		<!-- Loading dialog -->
-		<div class="loading-dialog">
-			<h1>Loading ...</h1>
-			<div class="mdl-spinner mdl-js-spinner is-active"></div>
-		</div>
+                <ul class="mdl-menu mdl-menu--bottom-right mdl-js-menu mdl-js-ripple-effect"
+                        for="profile-menu">
+					<% if (loggedIn) { %>
+						<li class="mdl-menu__item"><a class="mdl-navigation__link" style="color: black;">Parametres</a></li>
+						<li class="mdl-menu__item"><a class="mdl-navigation__link" style="color: black;" href="/logout">Deconnection</a></li>
+					<% } else { %>
+						<li class="mdl-menu__item"><a class="mdl-navigation__link" style="color: black;" href="/auth/google">Se Connecter</a></li>
+					<% } %>
+                </ul>
+            </div>
+			<% if (typeof(headerTabs) !== "undefined") { %>
+				<div class="mdl-layout__tab-bar mdl-js-ripple-effect">
+					<% headerTabs.forEach((tab) => { %>
+						<a <% if (tab.ref) { %> href="<%- tab.ref -%>" <% }; %> class="mdl-layout__tab <% if (tab.selected) {%>is-active<% }; %>"><%- tab.name -%></a>
+					<% }); %>
+				</div>
+			<% }; %>
+        </header>
 
-		<main class="demo-main mdl-layout__content">
-			<div class="page-content">
+        <main class="mdl-layout__content">
+            <div style="margin: 10px 40px;">

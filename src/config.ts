@@ -16,6 +16,15 @@
 import { readFileSync } from "fs";
 
 
+interface DbConfig {
+    database: string,
+    port: number,
+    host: string,
+    user: string,
+    password: string
+}
+
+
 interface Config {
     // The OAuth client ID from the Google Developers console.
     oAuthClientID: string,
@@ -43,27 +52,33 @@ interface Config {
     albumPageSize: 50,
 
     // The API end point to use. Do not change.
-    apiEndpoint: string
+    apiEndpoint: string,
+
+    dataBase: DbConfig, 
 }
 
-const OAUTH_INFO: any = JSON.parse(readFileSync("oAuthInfo.json", 'utf-8'));
+const PROJECT_CONFIG: any = JSON.parse(readFileSync("project_config.json", 'utf-8'));
 
 export let config: Config = {
-    oAuthClientID: OAUTH_INFO.clientID,
-    oAuthClientSecret: OAUTH_INFO.secret,
+    oAuthClientID: PROJECT_CONFIG.clientID,
+    oAuthClientSecret: PROJECT_CONFIG.secret,
     oAuthCallbackUrl: 'http://127.0.0.1:8080/auth/google/callback',
     port: 8080,
     scopes: [
         'https://www.googleapis.com/auth/photoslibrary.readonly',
         'https://www.googleapis.com/auth/photoslibrary.appendonly',
+        'https://www.googleapis.com/auth/photoslibrary',
         'profile',
     ],
     photosToLoad: 150,
     searchPageSize: 100,
     albumPageSize: 50,
-    apiEndpoint: 'https://photoslibrary.googleapis.com'
+    apiEndpoint: 'https://photoslibrary.googleapis.com',
+    dataBase: {
+        host: PROJECT_CONFIG.dbhost,
+        port: PROJECT_CONFIG.dbport,
+        database: PROJECT_CONFIG.dbname,
+        user: PROJECT_CONFIG.dbuser,
+        password: PROJECT_CONFIG.dbpassword
+    }
 }
-
-
-
-

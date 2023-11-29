@@ -4,15 +4,17 @@ import expressWinston from 'express-winston';
 import * as fetch from 'node-fetch';
 import * as multer from 'multer';
 import passport from 'passport';
-// import {Strategy as GoogleOAuthStrategy} from 'passport-google-oauth20';
 import persist from 'node-persist';
 import session from 'express-session';
 import sessionFileStore from 'session-file-store';
 import winston from 'winston';
+import * as pgp from "pg-promise";
 
 import { auth } from './auth.js';
 import { config } from './config.js';
 
+
+const database = pgp.default()(config.dataBase);
 
 const app: express.Express = express();
 const fileStore = sessionFileStore(session);
@@ -173,21 +175,31 @@ app.use((req: any, res: express.Response, next) => {
     if (req.user && req.user.profile && req.user.profile.photos) {
         res.locals.avatarUrl = req.user.profile.photos[0].value;
     }
+
+    res.locals.loggedIn = req.user && req.isAuthenticated();
     next();
 });
+
+async function getUser(req: express.Request, res: express.Response) : Promise<User | null> {
+    let queryRes = await database.manyOrNone(`SELECT * FROM users WHERE profile_id='${(req as any).user.profile.id}';`)
+    .catch((err) => {
+        return null;
+    });
+    if (queryRes?.length === 1) {
+        let item = queryRes[0];
+        return item;
+    }
+    return null;
+}
 
 
 // GET request to the root.
 // Display the login screen if the user is not logged in yet, otherwise the
 // photo frame.
 app.get('/', (req: express.Request, res: express.Response) => {
-    if (!req.user || !req.isAuthenticated()) {
-        // Not logged in yet.
-        res.render('login');
-    } else {
-        res.render('pages/frame');
-    }
+    res.render('pages/index');
 });
+
 
 // GET request to log out the user.
 // Destroy the current session and redirect back to the log in screen.
@@ -213,9 +225,21 @@ app.get(
     '/auth/google/callback',
     passport.authenticate(
         'google', { failureRedirect: '/', failureFlash: true, session: true }),
-    (req, res) => {
-        // User has logged in.
-        logger.info('User has logged in.');
+    async(req, res) => {
+        // add user to database
+        let profile_id = (req as any).user.profile.id;
+        let name = (req as any).user.profile.displayName;
+        await database.none(
+        `INSERT INTO users (name, profile_id)
+        SELECT '${name}', '${profile_id}'
+        WHERE
+        NOT EXISTS (
+            SELECT name, profile_id FROM users WHERE profile_id='${profile_id}'
+        );
+        `).catch((err) => {
+            console.log("Couldn't add user to table.")
+            console.log(err);
+        });
         req.session.save(() => {
             res.redirect('/');
     });
@@ -223,10 +247,82 @@ app.get(
 
 
 app.get('/add', (req: express.Request, res: express.Response) => {
-    renderIfAuthenticated(req, res, "index");
+    renderIfAuthenticated(req, res, "pages/add");
 });
 
 
+app.get('/collections', async (req: express.Request, res: express.Response) => {
+    if (isAuthenticated(req)) {
+        // check if user can add collection.
+        let queryRes = await database.one(`SELECT cancreate FROM users WHERE profile_id='${(req as any).user.profile.id}'`)
+            .catch((err) => {
+                return {cancreate: false};
+            });
+        if (queryRes.cancreate) {
+            res.render('pages/collections', {
+                headerTabs: [{
+                    ref: "/add",
+                    name: "Ajouter une Collection",
+                    selected: true,
+                }]
+            });
+        } else {
+            res.render('pages/collectionsNoAcces');
+        }
+    } else {
+        res.redirect('/');
+    }
+});
+
+
+app.post('/newcollection', async (req: express.Request, res: express.Response) => {
+    const authToken: string = (req as any).user.token;
+    const name = req.body.name;
+    const description = req.body.description;
+    const ispublic = (req.body.ispublic == 'on');
+  
+    let result = await fetch.default(
+        config.apiEndpoint + '/v1/albums',
+        {
+            method: 'post',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + authToken
+            },
+            body: JSON.stringify({
+                album: {
+                    title: name + "_Collectionneur"
+                }
+            })
+        }
+    )
+    .catch((err) => {
+        console.log(err);
+        return undefined;
+    });
+    if (result !== undefined && result.status == 200) {
+        let body = await result.json();
+        // add it to the data base
+        let pub = ispublic ? "TRUE": "FALSE";
+        let user = await getUser(req, res);
+        if (user === null) {
+            console.log("Couldn't find current user.")
+            return;
+        }
+        await database.none(`INSERT INTO collections 
+            (name, google_id, description, public, user_id)
+            VALUES
+            ('${name}', '${body.id}', '${description}', ${pub}, '${user.id}');`);
+
+        // TODO: if set to public update the google api
+
+        // Server side event to the page to tell the user that the album as been added.
+    } else {
+        console.log("error creating the album");
+        console.log(result?.status);
+        console.log(result?.statusText);
+    }
+});
 
 app.post('/newimage', upload.single('image'), async (req: express.Request, res: express.Response, next) => {
     const authToken: string = (req as any).user.token;
@@ -235,7 +331,13 @@ app.post('/newimage', upload.single('image'), async (req: express.Request, res: 
         // TODO: handle error here
         return;
     }
-
+    const img_name = req.body.image_name;
+    const description = req.body.description;
+    if (req.body.tags) {
+        const tags = (req.body.tags as string).split(';');
+    } else {
+        const tags = '';
+    }
     fetch.default(
         config.apiEndpoint + '/v1/uploads',
         {
@@ -265,7 +367,6 @@ app.post('/newimage', upload.single('image'), async (req: express.Request, res: 
                 body: JSON.stringify({
                     newMediaItems: [
                         {
-                            description: "Belle photo de moi",
                             simpleMediaItem: {
                                 fileName: (file as Express.Multer.File).originalname,
                                 uploadToken: uploadtoken
@@ -280,8 +381,13 @@ app.post('/newimage', upload.single('image'), async (req: express.Request, res: 
             return Promise.reject(new Error(`Error creating new media.  Status code: ${res.status}`));
         }
         let mediaResults: NewMediaItemResults = await res.json();
-        mediaResults.newMediaItemResults.forEach((newItem) => {
+        mediaResults.newMediaItemResults.forEach(async (newItem) => {
             console.log(`${newItem.mediaItem.filename} successfully uploaded.`);
+            // console.log(newItem.mediaItem.id);
+            // seems like the media item id is 98
+            // console.log(newItem.mediaItem.id.length);
+            // add it to the db
+            // await db.none(`INSERT INTO pins VALUES(${newIndex}, '${newItem.mediaItem.id}');`);
         })
     }).catch((err: any) => {
         // TODO: handle error here:
@@ -463,13 +569,18 @@ app.get('/getQueue', async (req: any, res: any) => {
 });
 
 
+function isAuthenticated(req: express.Request) : boolean {
+    return req.user !== undefined && req.isAuthenticated();
+}
+
+
 // Renders the given page if the user is authenticated.
 // Otherwise, redirects to "/".
 function renderIfAuthenticated(req: express.Request, res: express.Response, page: string) {
-    if (!req.user || !req.isAuthenticated()) {
-        res.redirect('/');
-    } else {
+    if (isAuthenticated(req)) {
         res.render(page);
+    } else {
+        res.redirect('/');
     }
 }
 

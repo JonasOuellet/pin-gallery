@@ -96,3 +96,43 @@ interface NewMediaItemResult {
 interface NewMediaItemResults {
     newMediaItemResults: NewMediaItemResult[]
 }
+
+
+interface NewAlbum {
+    id: string,
+    title: string
+}
+
+interface ShareInfo {
+    sharedAlbumOptions: SharedAlbumOptions,
+    shareableUrl: string,
+    shareToken: string,
+    isJoined: boolean,
+    isOwned: boolean,
+    isJoinable: boolean
+}
+
+interface SharedAlbumOptions {
+    isCollaborative: boolean,
+    isCommentable: boolean
+}
+
+
+// https://developers.google.com/photos/library/reference/rest/v1/albums?hl=fr#Album
+interface Album {
+    id: string,
+    title: string,
+    productUrl: string,
+    isWritable: boolean,
+    shareInfo?: ShareInfo,
+    mediaItemsCount: string,
+    coverPhotoBaseUrl: string,
+    coverPhotoMediaItemId: string
+}
+
+
+interface User {
+    id: string,
+    name: string,
+    cancreate: boolean
+}

@@ -1,7 +1,7 @@
 out
 node_modules
 static/js
-oAuthInfo.json
+project_config.json
 persist-albumcache
 persist-mediaitemcache
 persist-storage

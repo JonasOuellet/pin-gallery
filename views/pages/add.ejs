@@ -1,0 +1,85 @@
+<%- include('../partials/head') %>
+
+                <h1>Ajouter a votre collection</h1>
+                <p>Ajoute un nouvel item a votre collection a partir de la source desire.</p>
+                <div class="mdl-tabs mdl-js-tabs mdl-js-ripple-effect">
+                    <div class="mdl-tabs__tab-bar">
+                        <a href="#webcam-panel" class="mdl-tabs__tab is-active">Web Cam</a>
+                        <a href="#computer-panel" class="mdl-tabs__tab">Image Existante</a>
+                    </div>
+                    <div class="mdl-tabs__panel is-active" id="webcam-panel">
+                        <div class="mdl-grid">
+                            <div class="mdl-cell mdl-cell--4-col"></div>
+                            <div class="mdl-cell mdl-cell--4-col">
+                                <div class="camera" style="margin: auto;">
+                                    <video id="video" style="margin: auto;">Video stream not available.</video>
+                                    <div style="text-align: center; margin-top: 20px;">
+                                        <button 
+                                            class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
+                                            id="startbutton"
+                                        >Capture
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mdl-cell mdl-cell--4-col"></div>
+                          </div>
+                    </div>
+                    <div class="mdl-tabs__panel" id="computer-panel">
+                        <div style="text-align: center; margin-top: 20px;">
+                            <button id="browse_image_input"
+                                class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
+                            >Parcourir
+                            </button>
+                        </div>
+                        <input type="file" id="image_input_browsed" style="visibility: hidden;">
+                    </div>
+                </div>
+
+                <div class="demo-card-wide mdl-card mdl-shadow--2dp" style="width: 60%; min-width: 800px; margin-top: 60px; margin: auto;">
+                    <div class="mdl-card__title">
+                        <h2 class="mdl-card__title-text">Nouvel Item</h2>
+                    </div>
+                    <canvas id="canvas" style="max-width: 60%; margin: auto;"></canvas>
+                    <form id="newimage" action="newimage" enctype="multipart/form-data" method="post">
+                        <div style="display: block; margin: 20px;">
+                            <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="display: block;">
+                                <input class="mdl-textfield__input" type="text" name="image_name" id="sample3">
+                                <label class="mdl-textfield__label" for="sample3">Identifiant...</label>
+                            </div>
+                            <div class="mdl-textfield mdl-js-textfield" style="display: block;">
+                                <textarea class="mdl-textfield__input" type="text" rows= "3" id="sample5" name="description"></textarea>
+                                <label class="mdl-textfield__label" for="sample5">Description...</label>
+                            </div>
+                        </div>
+                        <div class="mdl-card__actions mdl-card--border">
+                            <div class="mdl-card__title">
+                                <h2 class="mdl-card__subtitle-text">Etiquettes</h2>
+                            </div>
+                        </div>
+                        <div class="mdl-card__supporting-text">
+                            Les etiquettes permettent de categoriser les items plus facilement.
+                        </div>
+                        <div class="mdl-textfield mdl-js-textfield mdl-textfield--expandable">
+                            <label class="mdl-button mdl-js-button mdl-button--icon" for="tag-input">
+                                <i class="material-icons">search</i>
+                            </label>
+                            <div class="mdl-textfield__expandable-holder">
+                                <input class="mdl-textfield__input" type="text" id="tag-input">
+                                <label class="mdl-textfield__label" for="sample-expandable">Expandable Input</label>
+                            </div>
+                        </div>
+                        <div id="tags-container">
+                        </div>
+                        <input type="hidden", name="tags" id="tags">
+                        <input type="file" name="image" id="image_input" style="visibility: hidden;">
+                        <input type="submit" style="visibility: hidden;">
+                        <div class="mdl-card__actions mdl-card--border" style="text-align: center;" id="accept_new_image">
+                            <input class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" type="button" value="Ajouter">
+                        </div>
+                    </form>
+                </div>
+
+<%- include('../partials/footer') %>
+<script src="js/take_photo.js"></script>
+<%- include('../partials/js') %>
