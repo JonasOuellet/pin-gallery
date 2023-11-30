@@ -1,0 +1,15 @@
+<%- include('../partials/head') %>
+<h1><%- collectionName -%></h1>
+<p><%- collectionDescription -%></p>
+
+<h2>Items</h2>
+<!-- Colored raised button -->
+<button
+    class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored"
+    onclick="window.location.href='/collections/<%-collectionName-%>/newitem'"
+>
+    Ajouter un Item
+</button>
+
+<%- include('../partials/footer') %>
+<%- include('../partials/js') %>

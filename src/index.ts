@@ -130,22 +130,21 @@ app.use('/js', express.static("./node_modules/jquery/dist/"));
 app.use('/fancybox', express.static('./node_modules/@fancyapps/fancybox/dist/'));
 app.use('/mdlite', express.static('./node_modules/material-design-lite/dist/'));
 
-
-const multerStorage = multer.diskStorage({
-    destination: (req: express.Request, file: Express.Multer.File, cb) => {
-        cb(null, "./uploads/")
-    },
-    filename: (req: express.Request, file: Express.Multer.File, cb) => {
-        let splitted = file.mimetype.split('/');
-        if (splitted[0] === "image") {
-            // let ext = splitted[1];
-            cb(null, file.originalname);
-        }
-        else {
-            cb(new Error(`Invalid mime type: (${splitted[0]})`), "");
-        }
-    }
-});
+// const multerStorage = multer.diskStorage({
+//     destination: (req: express.Request, file: Express.Multer.File, cb) => {
+//         cb(null, "./uploads/")
+//     },
+//     filename: (req: express.Request, file: Express.Multer.File, cb) => {
+//         let splitted = file.mimetype.split('/');
+//         if (splitted[0] === "image") {
+//             // let ext = splitted[1];
+//             cb(null, file.originalname);
+//         }
+//         else {
+//             cb(new Error(`Invalid mime type: (${splitted[0]})`), "");
+//         }
+//     }
+// });
 const multerMemoryStorage = multer.memoryStorage();
 const upload = multer.default({storage: multerMemoryStorage});
 
@@ -180,7 +179,7 @@ app.use((req: any, res: express.Response, next) => {
     next();
 });
 
-async function getUser(req: express.Request, res: express.Response) : Promise<User | null> {
+async function getUser(req: express.Request, res: express.Response) : Promise<DBUser | null> {
     let queryRes = await database.manyOrNone(`SELECT * FROM users WHERE profile_id='${(req as any).user.profile.id}';`)
     .catch((err) => {
         return null;
@@ -192,6 +191,50 @@ async function getUser(req: express.Request, res: express.Response) : Promise<Us
     return null;
 }
 
+async function getCollections(user: DBUser) : Promise<DBCollection[]> {
+    let queryRes = await database.manyOrNone(`SELECT * FROM collections WHERE user_id='${user.id}';`)
+        .catch((err) => {
+            return [];
+        });
+    return queryRes;
+}
+
+async function getCollectionGoogleID(id: string) : Promise<string | null> {
+    let queryRes = await database.oneOrNone(`SELECT google_id FROM collections WHERE id='${id}';`)
+        .catch((err) => {
+            return {google_id: null};
+        });
+    return queryRes.google_id;
+}
+
+function findCollectionByName(collections: DBCollection[], name: string) : DBCollection {
+    for (var coll of collections) {
+        if (coll.name === name) {
+            return coll;
+        }
+    }
+    throw new Error("Couldn't find collections with name: " + name);
+}
+
+
+function getCollectionTabs(collections: DBCollection[], currentCollections?: string, addCreate?: boolean, createCurrent?: boolean):  UICollectionTabs[] {
+    let out: UICollectionTabs[] = [];
+    collections.forEach((album, index) => {
+        out.push({
+            ref: `/collections/${album.name}`,
+            name: album.name,
+            selected: album.name === currentCollections
+        })
+    })
+    if (addCreate) {
+        out.push({
+            ref: "/collections/add",
+            name: "Ajouter une collection",
+            selected: createCurrent === true
+        })
+    }
+    return out;
+}
 
 // GET request to the root.
 // Display the login screen if the user is not logged in yet, otherwise the
@@ -246,28 +289,97 @@ app.get(
 });
 
 
-app.get('/add', (req: express.Request, res: express.Response) => {
-    renderIfAuthenticated(req, res, "pages/add");
-});
-
-
 app.get('/collections', async (req: express.Request, res: express.Response) => {
     if (isAuthenticated(req)) {
         // check if user can add collection.
-        let queryRes = await database.one(`SELECT cancreate FROM users WHERE profile_id='${(req as any).user.profile.id}'`)
-            .catch((err) => {
-                return {cancreate: false};
-            });
-        if (queryRes.cancreate) {
-            res.render('pages/collections', {
-                headerTabs: [{
-                    ref: "/add",
-                    name: "Ajouter une Collection",
-                    selected: true,
-                }]
+        let dbuser = await getUser(req, res);
+        if (dbuser === null) {
+            res.redirect('/');
+        } else if (dbuser.cancreate) {
+            // find collections
+            let collections = await getCollections(dbuser);
+            if (collections.length === 0) {
+                // if no albums redirect to add
+                res.redirect('/collections/add');
+            }
+            else if (collections.length === 1) {
+                // if only one redirect to the main page of this ablum
+                res.redirect(`/collections/${collections[0].name}`);
+            } else {
+                res.render('pages/collections', {
+                    headerTabs: getCollectionTabs(collections, undefined, true, false)
+                }); 
+            }
+        } else {
+            res.render('pages/collectionsNoAcces');
+        }
+    } else {
+        res.redirect('/');
+    }
+});
+
+app.get("/collections/add", async (req: express.Request, res: express.Response) => {
+    if (isAuthenticated(req)) {
+        // check if user can add collection.
+        let dbuser = await getUser(req, res);
+        if (dbuser === null) {
+            res.redirect('/');
+        } else if (dbuser.cancreate) {
+            // find collections
+            let collections = await getCollections(dbuser);
+            res.render('pages/collectionsnew', {
+                headerTabs: getCollectionTabs(collections, undefined, true, true)
             });
         } else {
             res.render('pages/collectionsNoAcces');
+        }
+    } else {
+        res.redirect('/');
+    }
+});
+
+app.get("/collections/:colname", async (req: express.Request, res: express.Response) => {
+    if (isAuthenticated(req)) {
+        // check if user can add collection.
+        let dbuser = await getUser(req, res);
+        if (dbuser === null) {
+            res.redirect('/');
+        } else {
+            let collections = await getCollections(dbuser);
+            let collection = findCollectionByName(collections, req.params.colname);
+            res.render(
+                "pages/collection",
+                {
+                    headerTabs: getCollectionTabs(collections, req.params.colname, true, false),
+                    collectionName: req.params.colname,
+                    collectionDescription: collection.description
+                }
+            )
+        }
+    } else {
+        res.redirect('/');
+    }
+});
+
+
+app.get("/collections/:colname/newitem", async (req: express.Request, res: express.Response) => {
+    if (isAuthenticated(req)) {
+        // check if user can add collection.
+        let dbuser = await getUser(req, res);
+        if (dbuser === null) {
+            res.redirect('/');
+        } else {
+            let collections = await getCollections(dbuser);
+            let collection = findCollectionByName(collections, req.params.colname);
+            res.render(
+                "pages/collectionNewItem",
+                {
+                    headerTabs: getCollectionTabs(collections, req.params.colname, true, false),
+                    collectionName: req.params.colname,
+                    collectionDescription: collection.description,
+                    collectionID: collection.id
+                }
+            )
         }
     } else {
         res.redirect('/');
@@ -324,7 +436,7 @@ app.post('/newcollection', async (req: express.Request, res: express.Response) =
     }
 });
 
-app.post('/newimage', upload.single('image'), async (req: express.Request, res: express.Response, next) => {
+app.post('/collection/:collectionID/newitem', upload.single('image'), async (req: express.Request, res: express.Response, next) => {
     const authToken: string = (req as any).user.token;
     let file = req.file;
     if (file === undefined) {
@@ -336,7 +448,7 @@ app.post('/newimage', upload.single('image'), async (req: express.Request, res: 
     if (req.body.tags) {
         const tags = (req.body.tags as string).split(';');
     } else {
-        const tags = '';
+        const tags: String[] = [];
     }
     fetch.default(
         config.apiEndpoint + '/v1/uploads',
@@ -354,31 +466,36 @@ app.post('/newimage', upload.single('image'), async (req: express.Request, res: 
         if (res.status === 200) {
             return res.text();
         }
-        return Promise.reject(new Error(`Error uploading image.  Status code: ${res.status}`));
+        return Promise.reject(new Error(`Error uploading image.  Status code: ${res.status}:  ${res.statusText}`));
     }).then(async (uploadtoken: string) => {
-       return fetch.default(
-            config.apiEndpoint + '/v1/mediaItems:batchCreate',
-            {
-                method: 'post',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + authToken,
-                },
-                body: JSON.stringify({
-                    newMediaItems: [
-                        {
-                            simpleMediaItem: {
-                                fileName: (file as Express.Multer.File).originalname,
-                                uploadToken: uploadtoken
+        let albumId = await getCollectionGoogleID(req.params.collectionID);
+        if (albumId === null) {
+            return Promise.reject(new Error(`Error getting google id for ${req.params.collectionID}`));
+        }
+        return fetch.default(
+                config.apiEndpoint + '/v1/mediaItems:batchCreate',
+                {
+                    method: 'post',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken,
+                    },
+                    body: JSON.stringify({
+                        albumId: albumId,
+                        newMediaItems: [
+                            {  
+                                simpleMediaItem: {
+                                    fileName: "temp.png",
+                                    uploadToken: uploadtoken
+                                }
                             }
-                        }
-                    ]
-                })
-            }
-       );
+                        ]
+                    })
+                }
+        );
     }).then(async (res: fetch.Response) => {
         if (res.status !== 200) {
-            return Promise.reject(new Error(`Error creating new media.  Status code: ${res.status}`));
+            return Promise.reject(new Error(`Error creating new media.  Status code: ${res.status}, ${res.statusText}`));
         }
         let mediaResults: NewMediaItemResults = await res.json();
         mediaResults.newMediaItemResults.forEach(async (newItem) => {

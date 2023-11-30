@@ -7,9 +7,59 @@ function getElemById<T>(id: string): T {
 }
 
 
+class Point2D{
+    x: number;
+    y: number;
+ 
+    constructor(x: number, y: number) {
+       this.x = x;
+       this.y = y;
+    }
+ 
+    static origin() : Point2D {
+       return new Point2D(0, 0);
+    }
+ 
+    static fromMouseEvent(event: MouseEvent) : Point2D {
+       return new Point2D(event.offsetX, event.offsetY);
+    }
+ 
+    add(other: Point2D) : Point2D {
+       return new Point2D(this.x + other.x, this.y + other.y);
+    }
+ 
+    sub(other: Point2D) : Point2D {
+       return new Point2D(this.x - other.x, this.y - other.y);
+    }
+    
+}
+
+class Rect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+
+    constructor(x: number, y: number, width: number, height: number) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+    }
+}
+
+
+enum MouseMoveEvent {
+    None,
+    Move,
+    Rect,
+    Rotate
+}
+ 
+
 class PhotoCapture {
     width: number;
-    height: number | null;
+    height: number;
 
     // |streaming| indicates whether or not we're currently streaming
     // video from the camera. Obviously, we start at false.
@@ -18,21 +68,155 @@ class PhotoCapture {
 
     video: HTMLVideoElement;
     canvas: HTMLCanvasElement;
-    // photo: HTMLImageElement;
-    startBtn: HTMLButtonElement;
+    canvasContext: CanvasRenderingContext2D;
+    image: ImageBitmap | null;
+
+    mouseEvent: MouseMoveEvent = MouseMoveEvent.None;
+    _initalPos: Point2D = Point2D.origin();
+    imagePosition: Point2D = Point2D.origin();
+    _initialImagePosition: Point2D = Point2D.origin();
+
+    // selectionRect: Rect | null = null;
+    _selRectInitial: Point2D;
+    _selRectNew: Point2D;
+
+    rotation: number = 0;
 
     constructor() {
-        this.width = 320;
-        this.height = null;
-
         this.streaming = false;
+        this.width = 1280;
+        this.height = 720;
+
+        this._selRectInitial = Point2D.origin();
+        this._selRectNew =  new Point2D(this.width, this.height);
 
         this.video = getElemById<HTMLVideoElement>("video");
         this.canvas = getElemById<HTMLCanvasElement>("canvas");
-        // this.photo = getElemById<HTMLImageElement>("photo");
-        this.startBtn = getElemById<HTMLButtonElement>("startbutton");
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+
+        const context = this.canvas.getContext("2d");
+        if (context === null) {
+            throw new Error("Cannot get context from canvas.");
+        }
+        this.canvasContext = context;
 
         this.stream = null;
+        this.image = null;
+    }
+
+    getRect(): [number, number, number, number] {
+        let [minX, maxX] = [this._selRectInitial.x, this._selRectNew.x].sort();
+        let [minY, maxY] = [this._selRectInitial.y, this._selRectNew.y].sort();
+
+        return [
+            minX,
+            minY,
+            maxX - minX,
+            maxY - minY
+        ]
+    }
+
+    drawImageAnimation() {
+        this.clearPhoto();
+        if (this.image !== null) {
+
+            this.canvasContext.translate(this.width/2, this.height/2);
+            this.canvasContext.rotate((this.rotation / 100) * (Math.PI / 2));
+            this.canvasContext.translate(-this.width/2, -this.height/2);
+
+            this.canvasContext.drawImage(this.image, this.imagePosition.x, this.imagePosition.y);
+
+            this.canvasContext.resetTransform();
+        }
+
+        // Create clipping path
+        this.canvasContext.save();
+        let region = new Path2D();
+        region.rect(0, 0, this.width, this.height);
+        region.rect(...this.getRect());
+        this.canvasContext.clip(region, "evenodd");
+
+        // Draw stuff that gets clipped
+        this.canvasContext.fillStyle = "rgba(0, 0, 0, 0.8)";
+        this.canvasContext.fillRect(0, 0, this.width, this.height);
+        this.canvasContext.restore();
+        // stop updating.
+        if (this.mouseEvent !== MouseMoveEvent.None) {
+            requestAnimationFrame((time) => this.drawImageAnimation());
+        } 
+    }
+
+    beginMoving(event: MouseEvent) {
+        // 0 left click
+        // 1 middle mouse
+        // 2 right click
+        if (this.mouseEvent === MouseMoveEvent.None && event.button === 0 && this.image){
+            // tell the browser we're handling this mouse event
+            // https://stackoverflow.com/questions/28284754/dragging-shapes-using-mouse-after-creating-them-with-html5-canvas
+
+            // set move cursor
+            document.body.style.cursor = "move";
+ 
+            this.mouseEvent = MouseMoveEvent.Move;
+            this._initalPos = new Point2D(event.x, event.y);
+            this._initialImagePosition = new Point2D(this.imagePosition.x, this.imagePosition.y);
+            
+            event.preventDefault();
+            event.stopPropagation();
+            // start drawing the image
+            this.drawImageAnimation()
+
+        } else if (!this.mouseEvent && event.button === 2) {
+            this._initalPos = new Point2D(event.x, event.y);
+            this.mouseEvent = MouseMoveEvent.Rect;
+            let ratioX = this.canvas.width / this.canvas.clientWidth;
+            let ratioY = this.canvas.height / this.canvas.clientHeight;
+            this._selRectInitial = new Point2D(event.offsetX * ratioX, event.offsetY * ratioY);
+            this._selRectNew = new Point2D(event.offsetX * ratioX, event.offsetY * ratioY);
+
+            document.body.style.cursor = "se-resize";
+
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            // start drawing the image
+            this.drawImageAnimation()
+        }
+     }
+  
+     endMoving(event: MouseEvent) {
+        if (
+            (this.mouseEvent == MouseMoveEvent.Move && event.button === 0) ||
+            (this.mouseEvent == MouseMoveEvent.Rect && event.button === 2)
+        ) {
+            this.mouseEvent = MouseMoveEvent.None;
+            
+            document.body.style.cursor = "auto";
+
+            event.preventDefault();
+            event.stopPropagation();
+        }
+     }
+  
+    move(event: MouseEvent) {
+        if (this.mouseEvent === MouseMoveEvent.Move && this.image) {
+            let relPos = new Point2D(event.x, event.y).sub(this._initalPos);
+            relPos.x *= this.canvas.width / this.canvas.clientWidth;
+            relPos.y *= this.canvas.height / this.canvas.clientHeight;
+            this.imagePosition = this._initialImagePosition.add(relPos);
+            
+            event.preventDefault();
+            event.stopPropagation();
+        } else if (this.mouseEvent === MouseMoveEvent.Rect) {
+            let relPos = new Point2D(event.x, event.y).sub(this._initalPos);
+            relPos.x *= this.canvas.width / this.canvas.clientWidth;
+            relPos.y *= this.canvas.height / this.canvas.clientHeight;
+            this._selRectNew = this._selRectInitial.add(relPos);
+
+            event.preventDefault();
+            event.stopPropagation();
+        }
     }
 
     initVideoStream() {
@@ -54,26 +238,13 @@ class PhotoCapture {
             "canplay",
             (ev) => {
                 if (!this.streaming) {
-                    this.height = this.video.videoHeight / (this.video.videoWidth / this.width);
-
-                    // Firefox currently has a bug where the height can't be read from
-                    // the video, so we will make assumptions if this happens.
-
-                    if (isNaN(this.height)) {
-                        this.height = this.width / (4 / 3);
-                    }
-
-                    this.video.setAttribute("width", this.width.toString());
-                    this.video.setAttribute("height", this.height.toString());
-                    this.canvas.setAttribute("width", this.width.toString());
-                    this.canvas.setAttribute("height", this.height.toString());
                     this.streaming = true;
                 }
             },
             false,
         );
 
-        this.startBtn.addEventListener(
+        getElemById<HTMLButtonElement>("captureBtn").addEventListener(
             "click",
             (ev) => {
                 this.takePicture();
@@ -81,7 +252,32 @@ class PhotoCapture {
             },
             false,
         );
+
+        this.canvas.addEventListener("mousedown", (event) => this.beginMoving(event));
+        this.canvas.addEventListener("contextmenu", (event) => {event.preventDefault()});
+      
+        window.addEventListener("mouseup", (event) => this.endMoving(event));
+               
+        window.addEventListener("mousemove", (event) => this.move(event));
+
+        getElemById<HTMLInputElement>("imgRotation").addEventListener("input", (event) => {
+            if (this.mouseEvent === MouseMoveEvent.None) {
+                this.mouseEvent = MouseMoveEvent.Rotate;
+                // begin draw
+                this.drawImageAnimation();
+            }
+            this.rotation = (event.target as any).value
+        })
+        getElemById<HTMLInputElement>("imgRotation").addEventListener("change", (event) => {
+            this.mouseEvent = MouseMoveEvent.None;
+        });
     }
+
+    imgReceived(image: ImageBitmap) {
+        this.image = image;
+        this.imagePosition = Point2D.origin();
+        this.drawImageAnimation();
+    };
 
     // Capture a photo by fetching the current contents of the video
     // and drawing it into a canvas, then converting that to a PNG
@@ -89,81 +285,74 @@ class PhotoCapture {
     // drawing that to the screen, we can change its size and/or apply
     // other changes before drawing it.
     takePicture() {
-        const context = this.canvas.getContext("2d");
-        if (context === null) {
-            throw new Error("Cannot get context from canvas.");
-        }
-        if (this.width && this.height) {
-            this.canvas.width = this.width;
-            this.canvas.height = this.height;
-            context.drawImage(this.video, 0, 0, this.width, this.height);
-            
-        } else {
-            this.clearPhoto();
+
+        this.image = null;
+        this.clearPhoto();
+        if (this.stream !== null) {
+            if (typeof(ImageCapture) === 'undefined') {
+                createImageBitmap(this.video).then((image) => {
+                    this.imgReceived(image)
+                })
+            } else {
+                let track = this.stream.getVideoTracks()[0];
+                // https://developer.mozilla.org/en-US/docs/Web/API/MediaStream_Image_Capture_API#browser_compatibility
+                
+                let imageCap = new ImageCapture(track);
+                imageCap.grabFrame().then(
+                    (image) => {
+                        this.imgReceived(image);
+                    }
+                )
+            }
         }
     }
     
     setImageFromInput() {
-        const context = this.canvas.getContext("2d");
-        if (context === null) {
-            throw new Error("Cannot get context from canvas.");
-        }
-        if (this.width && this.height) {
-            this.canvas.width = this.width;
-            this.canvas.height = this.height;
-            let input = getElemById<HTMLInputElement>("image_input_browsed");
-            if (input.files !== null) {
-                let file = input.files[0];
-                var url = URL.createObjectURL(file);
-                var img = new Image();
-                img.onload = function() {
-                    context.drawImage(img, 0, 0, img.width, img.height);
-                    // clear the file
-                    let container = new DataTransfer();
-                    input.files = container.files;
-                }
-                img.src = url;
-            }
-        }    
+        this.image = null;
         this.clearPhoto();
-        
+        let input = getElemById<HTMLInputElement>("image_input_browsed");
+        if (input.files !== null) {
+            let file = input.files[0];
+            createImageBitmap(file).then((image) => {
+                this.imgReceived(image)
+            })
+        }
     }
 
-    setImageInput(callback: (succeded: boolean) => any) {
+    async setImageInput() {
         // https://stackoverflow.com/questions/23511792/attach-a-blob-to-an-input-of-type-file-in-a-form
-        this.canvas.toBlob(
-            (result: Blob | null) => {
-                if (result === null) {
-                    // handle error here.
-                    return callback(false);
-                }
-                let filename = crypto.randomUUID();
-                let file = new File([result], filename + ".png", {type: "image/png", lastModified: new Date().getTime()});
-                let container = new DataTransfer();
-                container.items.add(file);
-                let elem = getElemById<HTMLInputElement>("image_input");
-                elem.files = container.files;
-                return callback(true);
-            },
-            // need to also test jpeg.  which one is smaller.
-            "image/png",
-            // the quality for jpeg image
-            1 
-        );
+        let data = this.canvasContext.getImageData(...this.getRect());
+        let img = await createImageBitmap(data);
+        // https://stackoverflow.com/questions/52959839/convert-imagebitmap-to-blob
+        // i need to draw it to a new canvas
+        let tmpCanvas =  document.createElement("canvas");
+        tmpCanvas.width = data.width;
+        tmpCanvas.height = data.height;
+        const ctx = tmpCanvas.getContext("bitmaprenderer");
+        if (ctx === null) {
+            tmpCanvas.remove();
+            return Promise.reject(new Error("Cannot get bitmap context."))
+        };
+        ctx.transferFromImageBitmap(img);
+        let result = await new Promise<Blob | null>((b) => tmpCanvas.toBlob(b, "image/png"));
+        if (result === null) {
+            tmpCanvas.remove();
+            return Promise.reject(new Error("Cannot getting the image data."))
+        }
+        let filename = "newImage";
+        let file = new File([result], filename + ".png", {type: "image/png", lastModified: new Date().getTime()});
+        let container = new DataTransfer();
+        container.items.add(file);
+        let elem = getElemById<HTMLInputElement>("image_input");
+        elem.files = container.files;
+        tmpCanvas.remove();
     }
 
     // Fill the photo with an indication that none has been
     // captured.
     clearPhoto() {
-        const context = this.canvas.getContext("2d");
-        if (context === null) {
-            throw new Error("Cannot get context from canvas.");
-        }
-        context.fillStyle = "#AAA";
-        context.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        const data = this.canvas.toDataURL("image/png");
-        // this.photo.setAttribute("src", data);
+        this.canvasContext.fillStyle = "#777777";
+        this.canvasContext.fillRect(0, 0, this.canvas.width, this.canvas.height);
     }
 }
 
@@ -250,21 +439,18 @@ window.addEventListener(
             });
 
             $("#accept_new_image").on("click", (event) => {
-                capture.setImageInput((succeded: boolean) => {
-                    if (succeded) {
-                        // handle the tag
-                        let tags = getTags().join(';');
-                        getElemById<HTMLInputElement>("tags").value = tags;
-                        // now that the imge is set trigger the submit
-                        // https://api.jquery.com/submit/
-                        $("#newimage").trigger("submit");
-                    } else {
-                        throw new Error("Coudln't send new item.  Failed to send image.")
-                    }
+                capture.setImageInput().then(() => {
+                    // handle the tag
+                    let tags = getTags().join(';');
+                    getElemById<HTMLInputElement>("tags").value = tags;
+                    // now that the imge is set trigger the submit
+                    // https://api.jquery.com/submit/
+                    $("#newimage").trigger("submit");
+                }).catch((err) => {
+                    console.log(err);
                 });
             });
         }
-
     },
     false
 )

@@ -131,8 +131,24 @@ interface Album {
 }
 
 
-interface User {
+interface DBUser {
     id: string,
     name: string,
     cancreate: boolean
+}
+
+
+interface DBCollection {
+    id: string,
+    name: string,
+    google_id: string,
+    description: string,
+    public: boolean
+}
+
+
+interface UICollectionTabs {
+    ref: string,
+    name: string,
+    selected: boolean,
 }

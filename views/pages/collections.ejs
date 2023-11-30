@@ -1,29 +1,5 @@
 <%- include('../partials/head') %>
-<div style="height: 100px;"></div>
-<div class="demo-card-wide mdl-card mdl-shadow--2dp" style="width: 60%; min-width: 800px; margin: auto;">
-    <div class="mdl-card__title">
-        <h2 class="mdl-card__title-text">Nouvelle Collection</h2>
-    </div>
-    <form id="newCollection" action="newcollection" method="post">
-        <div style="display: block; margin: 20px;">
-            <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="display: block;">
-                <input class="mdl-textfield__input" type="text" name="name" id="nameInput">
-                <label class="mdl-textfield__label" for="nameInput">Identifiant...</label>
-            </div>
-            <div class="mdl-textfield mdl-js-textfield" style="display: block;">
-                <textarea class="mdl-textfield__input" type="text" rows= "3" id="descriptionInput" name="description"></textarea>
-                <label class="mdl-textfield__label" for="descriptionInput">Description...</label>
-            </div>
-            <label class="mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="publicInput">
-                <input type="checkbox" id="publicInput" class="mdl-checkbox__input", name="ispublic">
-                <span class="mdl-checkbox__label">Public</span>
-            </label>
-        </div>
-        <div class="mdl-card__actions mdl-card--border" style="text-align: center;">
-            <input type="submit" class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" type="button" value="Ajouter">
-        </div>
-    </form>
-</div>
+<h1>Mes Collections</h1>
 
 <%- include('../partials/footer') %>
 <%- include('../partials/js') %>

@@ -8,6 +8,21 @@
 			"problemMatcher": [],
 			"label": "npm: build",
 			"detail": "tsc -p ./src && tsc -p ./frontend"
+		},
+		{
+			"type": "npm",
+			"script": "watch",
+			"group": "build",
+			"label": "npm: watch",
+			"detail": "tsc -p ./src"
+		},
+		{
+			"type": "npm",
+			"script": "watch_frontend",
+			"group": "build",
+			"label": "npm: watch_frontend",
+			"detail": "tsc -p ./frontend"
+
 		}
 	]
 }
