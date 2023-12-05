@@ -120,12 +120,14 @@ class PhotoCapture {
     drawImageAnimation() {
         this.clearPhoto();
         if (this.image !== null) {
-
-            this.canvasContext.translate(this.width/2, this.height/2);
+            this.canvasContext.translate(this.imagePosition.x, this.imagePosition.y);
             this.canvasContext.rotate((this.rotation / 100) * (Math.PI / 2));
-            this.canvasContext.translate(-this.width/2, -this.height/2);
 
-            this.canvasContext.drawImage(this.image, this.imagePosition.x, this.imagePosition.y);
+            this.canvasContext.drawImage(
+                this.image,
+                -this.image.width/2,
+                -this.image.height/2
+            );
 
             this.canvasContext.resetTransform();
         }
@@ -275,7 +277,7 @@ class PhotoCapture {
 
     imgReceived(image: ImageBitmap) {
         this.image = image;
-        this.imagePosition = Point2D.origin();
+        this.imagePosition = new Point2D(image.width/2, image.height/2);
         this.drawImageAnimation();
     };
 

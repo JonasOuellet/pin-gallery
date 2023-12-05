@@ -82,8 +82,25 @@ interface NewMediaItem {
     filename: string,
     id: string,
     mimeType: string,
-    productUrl: string,
     mediaMetadata: NewMediaMetadata
+}
+
+
+interface ContributorInfo {
+    profilePictureBaseUrl: string,
+    displayName: string
+}
+
+
+interface MediaItem extends NewMediaItem {
+    productUrl: string,
+    baseUrl: string,
+    contributorInfo: ContributorInfo
+}
+
+interface MediaItemSearchResult {
+    mediaItems: MediaItem[],
+    nextPageToken: string
 }
 
 
@@ -92,6 +109,7 @@ interface NewMediaItemResult {
     status: NewMediaStatus,
     mediaItem: NewMediaItem
 }
+
 
 interface NewMediaItemResults {
     newMediaItemResults: NewMediaItemResult[]
@@ -143,7 +161,8 @@ interface DBCollection {
     name: string,
     google_id: string,
     description: string,
-    public: boolean
+    public: boolean,
+    images?: MediaItem[]
 }
 
 
@@ -151,4 +170,8 @@ interface UICollectionTabs {
     ref: string,
     name: string,
     selected: boolean,
+}
+
+interface CachedPhoto {
+    thumbnails: string[] | undefined;
 }

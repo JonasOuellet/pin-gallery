@@ -9,6 +9,7 @@ import session from 'express-session';
 import sessionFileStore from 'session-file-store';
 import winston from 'winston';
 import * as pgp from "pg-promise";
+import * as crypto from "crypto";
 
 import { auth } from './auth.js';
 import { config } from './config.js';
@@ -45,6 +46,11 @@ const mediaItemCache = persist.create({
 });
 mediaItemCache.init();
 
+const thumbnailsItemCache = persist.create({
+    dir: 'persist-thumbnailsitemcache/',
+    ttl: 3300000,  // 55 minutes
+});
+thumbnailsItemCache.init();
 
 // Temporarily cache a list of the albums owned by the user. This caches
 // the name and base Url of the cover image. This ensures that the app
@@ -180,31 +186,88 @@ app.use((req: any, res: express.Response, next) => {
 });
 
 async function getUser(req: express.Request, res: express.Response) : Promise<DBUser | null> {
-    let queryRes = await database.manyOrNone(`SELECT * FROM users WHERE profile_id='${(req as any).user.profile.id}';`)
-    .catch((err) => {
-        return null;
-    });
-    if (queryRes?.length === 1) {
-        let item = queryRes[0];
-        return item;
+    try {
+        let queryRes = await database.manyOrNone(`SELECT * FROM users WHERE profile_id='${(req as any).user.profile.id}';`)
+        if (queryRes?.length === 1) {
+            let item = queryRes[0];
+            return item;
+        }
+    } catch (err) {
+        console.log(`Get user error: ${err}`)
     }
     return null;
 }
 
 async function getCollections(user: DBUser) : Promise<DBCollection[]> {
-    let queryRes = await database.manyOrNone(`SELECT * FROM collections WHERE user_id='${user.id}';`)
-        .catch((err) => {
-            return [];
-        });
-    return queryRes;
+    try {
+        return await database.manyOrNone(`SELECT * FROM collections WHERE user_id='${user.id}';`)
+    } catch (err) {
+        console.log(`Get Collections error: ${err}`)
+    }
+    return [];
+}
+
+async function getCollectionFromName(user: DBUser, collectionName: string) : Promise<DBCollection | null> {
+    try {
+        return await database.oneOrNone(`SELECT * FROM collections WHERE user_id='${user.id}' AND name='${collectionName}';`);
+    } catch (err) {
+        console.log(`Get Collection error: ${err}`)
+    }
+    return null;
+}
+
+async function getCollectionImage(authToken: string, col: DBCollection, pageSize: number): Promise<MediaItemSearchResult> {
+    // https://developers.google.com/photos/library/reference/rest/v1/mediaItems/search?hl=fr
+    try {
+        let result = await fetch.default(
+            config.apiEndpoint + '/v1/mediaItems:search',
+            {
+                method: 'post',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + authToken
+                },
+                body: JSON.stringify({
+                    albumId: col.google_id,
+                    pageSize: pageSize
+                    // page token
+                })
+            }
+        );
+        if (result.status === 200) {
+            let body: MediaItemSearchResult = await result.json();
+            // body might be empty:
+            if (typeof(body.mediaItems) !== "undefined") {
+                return body;
+            }
+        } else {
+            console.log(`Request error: ${result.status}, ${result.statusText}`);
+        }
+    } catch (err) {
+        console.log(`Error: ${err}`);
+    }
+    return {
+        mediaItems: [],
+        nextPageToken: ""
+    }
+}
+
+
+async function getCollection(id: string): Promise<DBCollection | null> {
+    try {
+        return await database.oneOrNone(`SELECT * FROM collections WHERE id='${id}';`)
+    } catch (error) {
+    }
+    return null;
 }
 
 async function getCollectionGoogleID(id: string) : Promise<string | null> {
-    let queryRes = await database.oneOrNone(`SELECT google_id FROM collections WHERE id='${id}';`)
-        .catch((err) => {
-            return {google_id: null};
-        });
-    return queryRes.google_id;
+    try {
+        return (await database.oneOrNone(`SELECT google_id FROM collections WHERE id='${id}';`)).google_id;
+    } catch (err) {
+        console.log(`Error: ${err}`);
+    }
+    return null;
 }
 
 function findCollectionByName(collections: DBCollection[], name: string) : DBCollection {
@@ -219,6 +282,18 @@ function findCollectionByName(collections: DBCollection[], name: string) : DBCol
 
 function getCollectionTabs(collections: DBCollection[], currentCollections?: string, addCreate?: boolean, createCurrent?: boolean):  UICollectionTabs[] {
     let out: UICollectionTabs[] = [];
+    if (collections.length > 1) {
+        out.push({
+            ref: "/collections",
+            name: "Toutes mes collections",
+            selected: currentCollections === undefined && createCurrent !== true
+        });
+        out.push({
+            ref: "",
+            name: "separator",
+            selected: false
+        });
+    }
     collections.forEach((album, index) => {
         out.push({
             ref: `/collections/${album.name}`,
@@ -227,6 +302,13 @@ function getCollectionTabs(collections: DBCollection[], currentCollections?: str
         })
     })
     if (addCreate) {
+        if (out.length > 2) {
+            out.push({
+                ref: "",
+                name: "separator",
+                selected: false
+            });
+        }
         out.push({
             ref: "/collections/add",
             name: "Ajouter une collection",
@@ -289,6 +371,40 @@ app.get(
 });
 
 
+app.get('/collections/:colname/thumbnails/read', async (req: express.Request, res: express.Response) => {
+    if (isAuthenticated(req)) {
+        let dbuser = await getUser(req, res);
+        if (dbuser === null) {
+            return res.status(400).send('User not found.');
+        }
+        const userId = (req.user as any).profile.id;
+
+        let key = `${userId}_${req.params.colname}`;
+        const cachedPhotos: string[] | null = await thumbnailsItemCache.getItem(key);
+        if (cachedPhotos) {
+            return res.status(200).send({ thumbnails: cachedPhotos });
+        }
+        
+        let coll = await getCollectionFromName(dbuser, req.params.colname);
+        if (coll === null) {
+            return res.status(400).send('Collection not found.');
+        }
+
+        const authToken: string = (req as any).user.token;
+        let response = await getCollectionImage(authToken, coll, 4);
+        let images: String[] = [];
+        // set the max size
+        for (let item of response.mediaItems) {
+            images.push(item.baseUrl + "=w128-h128");
+        }
+
+        thumbnailsItemCache.update(key, images);
+        return res.status(200).send({ thumbnails: images });
+    }
+    return res.status(401).send('Unhautorized');
+});
+
+
 app.get('/collections', async (req: express.Request, res: express.Response) => {
     if (isAuthenticated(req)) {
         // check if user can add collection.
@@ -307,7 +423,8 @@ app.get('/collections', async (req: express.Request, res: express.Response) => {
                 res.redirect(`/collections/${collections[0].name}`);
             } else {
                 res.render('pages/collections', {
-                    headerTabs: getCollectionTabs(collections, undefined, true, false)
+                    headerTabs: getCollectionTabs(collections, undefined, true, false),
+                    collections: collections
                 }); 
             }
         } else {
@@ -443,8 +560,13 @@ app.post('/collection/:collectionID/newitem', upload.single('image'), async (req
         // TODO: handle error here
         return;
     }
+    let collection = await getCollection(req.params.collectionID);
+    if (collection === null) {
+        return Promise.reject(new Error(`Error getting google id for ${req.params.collectionID}`)); 
+    }
     const img_name = req.body.image_name;
     const description = req.body.description;
+    const imageUUID = crypto.randomUUID();
     if (req.body.tags) {
         const tags = (req.body.tags as string).split(';');
     } else {
@@ -468,10 +590,6 @@ app.post('/collection/:collectionID/newitem', upload.single('image'), async (req
         }
         return Promise.reject(new Error(`Error uploading image.  Status code: ${res.status}:  ${res.statusText}`));
     }).then(async (uploadtoken: string) => {
-        let albumId = await getCollectionGoogleID(req.params.collectionID);
-        if (albumId === null) {
-            return Promise.reject(new Error(`Error getting google id for ${req.params.collectionID}`));
-        }
         return fetch.default(
                 config.apiEndpoint + '/v1/mediaItems:batchCreate',
                 {
@@ -481,11 +599,11 @@ app.post('/collection/:collectionID/newitem', upload.single('image'), async (req
                         'Authorization': 'Bearer ' + authToken,
                     },
                     body: JSON.stringify({
-                        albumId: albumId,
+                        albumId: (collection as any).google_id,
                         newMediaItems: [
                             {  
                                 simpleMediaItem: {
-                                    fileName: "temp.png",
+                                    fileName: `${imageUUID}.png`,
                                     uploadToken: uploadtoken
                                 }
                             }
@@ -493,22 +611,26 @@ app.post('/collection/:collectionID/newitem', upload.single('image'), async (req
                     })
                 }
         );
-    }).then(async (res: fetch.Response) => {
-        if (res.status !== 200) {
-            return Promise.reject(new Error(`Error creating new media.  Status code: ${res.status}, ${res.statusText}`));
+    }).then(async (fetchRes: fetch.Response) => {
+        if (fetchRes.status !== 200) {
+            return Promise.reject(new Error(`Error creating new media.  Status code: ${fetchRes.status}, ${fetchRes.statusText}`));
         }
-        let mediaResults: NewMediaItemResults = await res.json();
+        let mediaResults: NewMediaItemResults = await fetchRes.json();
+        // TODO: handle the tags.
         mediaResults.newMediaItemResults.forEach(async (newItem) => {
             console.log(`${newItem.mediaItem.filename} successfully uploaded.`);
-            // console.log(newItem.mediaItem.id);
-            // seems like the media item id is 98
-            // console.log(newItem.mediaItem.id.length);
-            // add it to the db
-            // await db.none(`INSERT INTO pins VALUES(${newIndex}, '${newItem.mediaItem.id}');`);
+            await database.none(`INSERT INTO items VALUES(
+                '${imageUUID}', '${img_name}', '${description}', '${newItem.mediaItem.id}', '${(collection as any).id}');`);
         })
+        // TODO: clear the media cache and thumbnail
+        const userId = (req.user as any).profile.id;
+        let key = `${userId}_${(collection as any).name}`;
+        await thumbnailsItemCache.removeItem(key);
+        res.redirect(`/collections/${(collection as any).name}`);
     }).catch((err: any) => {
         // TODO: handle error here:
         console.log("Error occured", err);
+        res.send("Error occured.");
     });
 });
 

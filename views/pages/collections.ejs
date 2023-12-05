@@ -1,5 +1,18 @@
 <%- include('../partials/head') %>
 <h1>Mes Collections</h1>
 
+<% collections.forEach((col) => { %>
+    <div class="collection-container">
+        <h2>
+            <a href="/collections/<%-col.name-%>"><%-col.name-%></a>
+        </h2>
+        <p><%- col.description -%></p>
+        <div>
+        </div>
+    </div>
+
+<% }); %>
+
 <%- include('../partials/footer') %>
+<script src="/js/collections.js"></script>
 <%- include('../partials/js') %>

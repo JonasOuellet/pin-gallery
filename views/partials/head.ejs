@@ -9,17 +9,13 @@
 	<link rel="stylesheet" href="http://fonts.googleapis.com/css?family=Roboto:300,400,500,700" type="text/css">
 
 	<!-- Fancybox Gallery CSS -->
-	<link rel="stylesheet" type="text/css" href="/fancybox/jquery.fancybox.min.css">
+	<!-- <link rel="stylesheet" type="text/css" href="/fancybox/jquery.fancybox.min.css"> -->
 
 	<!-- Material design icon-->
 	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
 	<link rel="stylesheet" href="/mdlite/material.indigo-pink.min.css">
 
-    <link rel="stylesheet" href="/css/frame.css">
-	
-	<script src="/mdlite/material.min.js"></script>
-	<!-- <link rel="stylesheet" href="/css/frame.css"> -->
 	
 	<title>Collectionneurs</title>
 </head>
@@ -30,9 +26,10 @@
             <div class="mdl-layout-icon"></div>
             <div class="mdl-layout__header-row">
                 <nav class="mdl-navigation">
-                    <a class="mdl-navigation__link" href="/">Explorer</a>
+					<% let iscollections = typeof(headerTabs) !== "undefined";%>
+                    <a class="mdl-navigation__link <% if (!iscollections) { %> mdl-color--primary-dark <% } %>" href="/">Explorer</a>
 					<% if (loggedIn) { %>
-						<a class="mdl-navigation__link" href="/collections">Mes Collections</a>
+						<a class="mdl-navigation__link <% if (iscollections) { %> mdl-color--primary-dark <% } %>" href="/collections">Mes Collections</a>
 					<% } %>
                 </nav>
                 <div class="mdl-layout-spacer"></div>
@@ -58,10 +55,17 @@
                 </ul>
             </div>
 			<% if (typeof(headerTabs) !== "undefined") { %>
-				<div class="mdl-layout__tab-bar mdl-js-ripple-effect">
-					<% headerTabs.forEach((tab) => { %>
-						<a <% if (tab.ref) { %> href="<%- tab.ref -%>" <% }; %> class="mdl-layout__tab <% if (tab.selected) {%>is-active<% }; %>"><%- tab.name -%></a>
-					<% }); %>
+				<div class="mdl-layout__header-row mdl-color--primary-dark">
+					<nav class="mdl-navigation">
+						<% headerTabs.forEach((tab) => { %>
+							<% if (tab.name === "separator") { %> 
+								<span style="width: 2px; height: 60%; border-radius: 6px;" class="mdl-color--primary"></span>
+							<% } else { %>
+								<a <% if (tab.ref) { %> href="<%- tab.ref -%>" <% }; %> class="mdl-navigation__link" style="margin-bottom: 3px; <% if (tab.selected) {%> border-bottom: 3px solid rgb(255,64,129);<% }; %>"><%- tab.name -%>
+							<% } %>
+							</a>
+						<% }); %>
+					</nav>
 				</div>
 			<% }; %>
         </header>
