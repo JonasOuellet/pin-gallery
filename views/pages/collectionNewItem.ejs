@@ -41,7 +41,7 @@
                         <label for="imgRotation">Image Rotation:</label>
                         <input id="imgRotation" name="imgRotation" class="mdl-slider mdl-js-slider" type="range" min="-100" max="100" value="0">
                     </div>
-                    <form id="newimage" action="/collection/<%-collectionID-%>/newitem" enctype="multipart/form-data" method="post">
+                    <form id="newimage" action="/collection/<%-collectionID-%>/items/create" enctype="multipart/form-data" method="post">
                         <div style="display: block; margin: 20px;">
                             <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="display: block;">
                                 <input class="mdl-textfield__input" type="text" name="image_name" id="sample3">

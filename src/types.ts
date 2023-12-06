@@ -82,7 +82,9 @@ interface NewMediaItem {
     filename: string,
     id: string,
     mimeType: string,
-    mediaMetadata: NewMediaMetadata
+    mediaMetadata: NewMediaMetadata,
+    baseUrl: string,
+    productUrl: string
 }
 
 
@@ -149,19 +151,36 @@ interface Album {
 }
 
 
-interface DBUser {
+interface DBUserCreate {
+    name: string,
+    cancreate: boolean,
+    profile_id: string
+}
+
+interface DBUser extends DBUserCreate{
     id: string,
     name: string,
-    cancreate: boolean
+    cancreate: boolean,
+    profile_id: string
 }
 
 
-interface DBCollection {
-    id: string,
+interface DBCollectionCreate {
     name: string,
     google_id: string,
     description: string,
     public: boolean,
+}
+
+interface DBItemCreate {
+    name: string,
+    description: string,
+    google_id: string,
+}
+
+
+interface DBCollection extends DBCollectionCreate {
+    id: string,
     images?: MediaItem[]
 }
 

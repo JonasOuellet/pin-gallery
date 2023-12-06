@@ -22,7 +22,21 @@
 			"group": "build",
 			"label": "npm: watch_frontend",
 			"detail": "tsc -p ./frontend"
-
+		},
+		{
+			"label": "Start Firestore Emulator",
+			"type": "shell",
+			"command": "gcloud emulators firestore start --host-port=127.0.0.1:8081",
+			"group": "none",
+			"detail": "Start the firestore emulator",
+			"problemMatcher": []
+		},
+		{
+			"label": "Clear Firestore",
+			"type": "shell",
+			"command": "curl -v -X DELETE \"http://127.0.0.1:8081/emulator/v1/projects/focal-rig-407200/databases/(default)/documents\"",
+			"group": "none",
+			"problemMatcher": []
 		}
 	]
 }

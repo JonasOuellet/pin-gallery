@@ -21,7 +21,8 @@ interface DbConfig {
     port: number,
     host: string,
     user: string,
-    password: string
+    password: string,
+    secret: string
 }
 
 
@@ -79,6 +80,7 @@ export let config: Config = {
         port: PROJECT_CONFIG.dbport,
         database: PROJECT_CONFIG.dbname,
         user: PROJECT_CONFIG.dbuser,
-        password: PROJECT_CONFIG.dbpassword
+        password: PROJECT_CONFIG.dbpassword,
+        secret: PROJECT_CONFIG.firestoreSecret
     }
 }

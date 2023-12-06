@@ -11,10 +11,15 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}\\out\\index.js",
+            "program": "out/index.js",
             "outFiles": [
-                "${workspaceFolder}/**/*.js"
+                "${workspaceFolder}/out/*.js"
             ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                // https://cloud.google.com/firestore/docs/emulator?hl=fr
+                "FIRESTORE_EMULATOR_HOST": "127.0.0.1:8081"
+            }
             // "preLaunchTask": "npm: build"
         }
     ]

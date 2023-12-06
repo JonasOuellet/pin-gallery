@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<h1><%- collectionName -%></h1>
+<h1 id="colNameTitle"><%- collectionName -%></h1>
 <p><%- collectionDescription -%></p>
 
 <h2>Items</h2>
@@ -11,5 +11,8 @@
     Ajouter un Item
 </button>
 
+<div id="itemimages"></div>
+
 <%- include('../partials/footer') %>
+<script src="/js/collection.js"></script>
 <%- include('../partials/js') %>

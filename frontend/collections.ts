@@ -79,13 +79,13 @@ $(() => {
         let colName = (elem.children[0] as HTMLElement).innerText;
         $.ajax({
             type: "GET",
-            url: `/collections/${colName}/thumbnails/read`,
+            url: `/collections/${colName}/itemimages/read`,
             dataType: 'json',
             success: (data) => {
                 let container = elem.children[2] as HTMLDivElement;
                 for (let img of data.thumbnails) {
                     const thumbnailImage = $('<img />')
-                        .attr('src', img)
+                        .attr('src', img + "=w128-h128")
                         .attr('style', "padding: 10px;");
                     container.appendChild(thumbnailImage.get(0) as HTMLElement);
                 }

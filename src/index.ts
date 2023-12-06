@@ -5,16 +5,17 @@ import * as fetch from 'node-fetch';
 import * as multer from 'multer';
 import passport from 'passport';
 import session from 'express-session';
-import sessionFileStore from 'session-file-store';
 import winston from 'winston';
 import * as crypto from "crypto";
+
+import { Firestore } from "@google-cloud/firestore";
+import { FirestoreStore } from '@google-cloud/connect-firestore';
 
 import { auth } from './auth.js';
 import { config } from './config.js';
 
 
 export const app: express.Express = express();
-const fileStore = sessionFileStore(session);
 
 app.set("view engine", "ejs");
 
@@ -26,19 +27,26 @@ app.set("views", "./views");
 // Set up static routes for hosted libraries.
 app.use(express.static("./static"));
 
+// setup firestore
+// https://cloud.google.com/firestore/docs/emulator?hl=fr
+// TODO: fill settings
+const db = new Firestore();
+app.use(
+    session({
+        store: new FirestoreStore({
+            dataset: db,
+            kind: 'express-sessions'
+        }),
+        secret: config.dataBase.secret,
+        resave: false,
+        saveUninitialized: true
+    })
+);
+
 
 // Set up OAuth 2.0 authentication through the passport.js library.
 auth(passport);
 
-// Set up a session middleware to handle user sessions.
-// NOTE: A secret is used to sign the cookie. This is just used for this sample
-// app and should be changed.
-const sessionMiddleware = session({
-    resave: true,
-    saveUninitialized: true,
-    store: new fileStore({}),
-    secret: 'photo frame sample',
-});
 
 // Console transport for winton.
 const consoleTransport = new winston.transports.Console();
@@ -108,9 +116,6 @@ app.use(bodyParser.json());
 // Parse application/xwww-form-urlencoded request data.
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Enable user session handling.
-app.use(sessionMiddleware);
-
 // Set up passport and session handling.
 app.use(passport.initialize());
 app.use(passport.session());
@@ -134,33 +139,75 @@ app.use((req: any, res: express.Response, next) => {
 });
 
 async function getUser(req: express.Request, res: express.Response) : Promise<DBUser | null> {
-    // try {
-    //     let queryRes = await database.manyOrNone(`SELECT * FROM users WHERE profile_id='${(req as any).user.profile.id}';`)
-    //     if (queryRes?.length === 1) {
-    //         let item = queryRes[0];
-    //         return item;
-    //     }
-    // } catch (err) {
-    //     console.log(`Get user error: ${err}`)
-    // }
+    try {
+        let users = await db.collection("Users")
+            .where("profile_id", "==", (req.user as any).profile.id)
+            .limit(1)
+            .get();
+        if (users.docs.length === 1) {
+            let doc = users.docs[0];
+            return {
+                id: doc.id,
+                ...(doc.data() as DBUserCreate)
+            };
+        }
+    } catch (err) {
+        console.log(`Get user error: ${err}`);
+    }
     return null;
 }
 
 async function getCollections(user: DBUser) : Promise<DBCollection[]> {
-    // try {
-    //     return await database.manyOrNone(`SELECT * FROM collections WHERE user_id='${user.id}';`)
-    // } catch (err) {
-    //     console.log(`Get Collections error: ${err}`)
-    // }
+    try {
+        let collections = await db.doc(`Users/${user.id}`).collection("Collections").get();
+        let out: DBCollection[] = [];
+        for (let col of collections.docs) {
+            out.push({
+                id: col.id,
+                ...(col.data() as DBCollectionCreate)
+            })
+        }
+        return out;
+    } catch (err) {
+        console.log(`Get Collections error: ${err}`)
+    }
     return [];
 }
 
 async function getCollectionFromName(user: DBUser, collectionName: string) : Promise<DBCollection | null> {
-    // try {
-    //     return await database.oneOrNone(`SELECT * FROM collections WHERE user_id='${user.id}' AND name='${collectionName}';`);
-    // } catch (err) {
-    //     console.log(`Get Collection error: ${err}`)
-    // }
+    try {
+        let collections = await db.doc(`Users/${user.id}`).collection("Collections")
+            .where("name", "==", collectionName)
+            .limit(1)
+            .get();
+        if (collections.docs.length === 1) {
+            let doc = collections.docs[0];
+            return {
+                id: doc.id,
+                ...(doc.data() as DBCollectionCreate)
+            };
+        }
+    } catch (err) {
+        console.log(`Get collections error: ${err}`);
+    }
+    return null;
+}
+
+
+async function getCollectionDocFromName(user: DBUser, collectionName: string)
+: Promise<FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData, FirebaseFirestore.DocumentData> | null> {
+    try {
+        let collections = await db.doc(`Users/${user.id}`).collection("Collections")
+            .where("name", "==", collectionName)
+            .limit(1)
+            .get();
+        if (collections.docs.length === 1) {
+            let doc = collections.docs[0];
+            return doc;
+        }
+    } catch (err) {
+        console.log(`Get collections error: ${err}`);
+    }
     return null;
 }
 
@@ -201,22 +248,19 @@ async function getCollectionImage(authToken: string, col: DBCollection, pageSize
 }
 
 
-async function getCollection(id: string): Promise<DBCollection | null> {
-    // try {
-    //     return await database.oneOrNone(`SELECT * FROM collections WHERE id='${id}';`)
-    // } catch (error) {
-    // }
+async function getCollection(id: string, user: DBUser): Promise<DBCollection | null> {
+    try {
+        let doc = await db.doc(`Users/${user.id}`).collection("Collections").doc(id).get();
+        return {
+            id: doc.id,
+            ...(doc.data() as DBCollectionCreate)
+        };
+    } catch (err) {
+        console.log(`Get collections error: ${err}`);
+    }
     return null;
 }
 
-async function getCollectionGoogleID(id: string) : Promise<string | null> {
-    // try {
-    //     return (await database.oneOrNone(`SELECT google_id FROM collections WHERE id='${id}';`)).google_id;
-    // } catch (err) {
-    //     console.log(`Error: ${err}`);
-    // }
-    return null;
-}
 
 function findCollectionByName(collections: DBCollection[], name: string) : DBCollection {
     for (var coll of collections) {
@@ -302,55 +346,60 @@ app.get(
         // add user to database
         let profile_id = (req as any).user.profile.id;
         let name = (req as any).user.profile.displayName;
-        // TODO:
-        //await database.none(
-        //`INSERT INTO users (name, profile_id)
-        //SELECT '${name}', '${profile_id}'
-        //WHERE
-        //NOT EXISTS (
-        //    SELECT name, profile_id FROM users WHERE profile_id='${profile_id}'
-        //);
-        //`).catch((err) => {
-        //    console.log("Couldn't add user to table.")
-        //    console.log(err);
-        //});
+        try {
+            let users = await db.collection("Users")
+                .select("name")
+                .where("profile_id", "==", profile_id)
+                .get();
+                if (users.empty) {
+                    // add a new user
+                    // set the first user that logging to be the "admin"
+                    let count = (await db.collection("Users").count().get()).data().count
+                    let ref = db.collection("Users").doc();
+                    await ref.set({
+                        name: name,
+                        profile_id: profile_id,
+                        cancreate: count === 0
+                } as DBUserCreate)
+            }
+        } catch (err) {
+            console.log("Error: " + err);
+            res.redirect('/');
+        }
         req.session.save(() => {
             res.redirect('/');
     });
 });
 
 
-app.get('/collections/:colname/thumbnails/read', async (req: express.Request, res: express.Response) => {
-    if (isAuthenticated(req)) {
-        let dbuser = await getUser(req, res);
-        if (dbuser === null) {
-            return res.status(400).send('User not found.');
+app.get('/collections/:colname/itemimages/read', async (req: express.Request, res: express.Response) => {
+    try {
+        if (isAuthenticated(req)) {
+            let dbuser = await getUser(req, res);
+            if (dbuser === null) {
+                return res.status(400).send('User not found.');
+            }
+            let collDoc = await getCollectionDocFromName(dbuser, req.params.colname);
+            if (collDoc === null) {
+                return res.status(400).send('Collection not found.');
+            }
+    
+            let imgs = await collDoc.ref.collection("Items")
+                .select("base_url")
+                // TODO: set the limit from the request
+                .limit(4)
+                .get();
+    
+            let images: String[] = [];
+            // set the max size
+            for (let item of imgs.docs) {
+                let data = item.data() as DBItemCreate;
+                images.push(data.base_url);
+            }
+            return res.status(200).send({ thumbnails: images });
         }
-        const userId = (req.user as any).profile.id;
-
-        let key = `${userId}_${req.params.colname}`;
-        // TODO:
-        const cachedPhotos: string[] | null = []; // await thumbnailsItemCache.getItem(key);
-        if (cachedPhotos) {
-            return res.status(200).send({ thumbnails: cachedPhotos });
-        }
-        
-        let coll = await getCollectionFromName(dbuser, req.params.colname);
-        if (coll === null) {
-            return res.status(400).send('Collection not found.');
-        }
-
-        const authToken: string = (req as any).user.token;
-        let response = await getCollectionImage(authToken, coll, 4);
-        let images: String[] = [];
-        // set the max size
-        for (let item of response.mediaItems) {
-            images.push(item.baseUrl + "=w128-h128");
-        }
-
-        // TODO:
-        // thumbnailsItemCache.update(key, images);
-        return res.status(200).send({ thumbnails: images });
+    } catch (err) {
+        console.log(err);
     }
     return res.status(401).send('Unhautorized');
 });
@@ -455,67 +504,66 @@ app.get("/collections/:colname/newitem", async (req: express.Request, res: expre
 });
 
 
-app.post('/newcollection', async (req: express.Request, res: express.Response) => {
-    const authToken: string = (req as any).user.token;
-    const name = req.body.name;
-    const description = req.body.description;
-    const ispublic = (req.body.ispublic == 'on');
-  
-    let result = await fetch.default(
-        config.apiEndpoint + '/v1/albums',
-        {
-            method: 'post',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + authToken
-            },
-            body: JSON.stringify({
-                album: {
-                    title: name + "_Collectionneur"
-                }
-            })
+app.post('/collections/create', async (req: express.Request, res: express.Response) => {
+    try { 
+        const authToken: string = (req as any).user.token;
+        const name = req.body.name;
+        const description = req.body.description;
+        const ispublic = (req.body.ispublic == 'on');
+        
+        let result = await fetch.default(
+            config.apiEndpoint + '/v1/albums',
+            {
+                method: 'post',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + authToken
+                },
+                body: JSON.stringify({
+                    album: {
+                        title: name + "_Collectionneur"
+                    }
+                })
+            }
+        )
+        if (result !== undefined && result.status == 200) {
+            let body = await result.json();
+            let user = await getUser(req, res);
+            if (user === null) {
+                throw new Error("Couldn't find current user.");
+            }
+            let doc = db.doc(`Users/${user.id}`).collection("Collections").doc();
+            let data: DBCollectionCreate = {
+                name: name,
+                google_id: body.id,
+                description: description,
+                public: ispublic 
+            }
+            await doc.set(data);
+            res.redirect(`/collections/${name}`)
+        } else {
+            throw new Error(`Invalid status code: ${result.status}.  "${result.statusText}`);
         }
-    )
-    .catch((err) => {
-        console.log(err);
-        return undefined;
-    });
-    if (result !== undefined && result.status == 200) {
-        let body = await result.json();
-        // add it to the data base
-        let pub = ispublic ? "TRUE": "FALSE";
-        let user = await getUser(req, res);
-        if (user === null) {
-            console.log("Couldn't find current user.")
-            return;
-        }
-
-        // TODO:
-        // await database.none(`INSERT INTO collections 
-        //     (name, google_id, description, public, user_id)
-        //     VALUES
-        //     ('${name}', '${body.id}', '${description}', ${pub}, '${user.id}');`);
-
-        // TODO: if set to public update the google api
-
-        // Server side event to the page to tell the user that the album as been added.
-    } else {
-        console.log("error creating the album");
-        console.log(result?.status);
-        console.log(result?.statusText);
+    } catch (err) {
+        console.log("Error creating a new collect: ", err);
+        res.redirect("/collections")
     }
 });
 
-app.post('/collection/:collectionID/newitem', upload.single('image'), async (req: express.Request, res: express.Response, next) => {
+app.post('/collection/:collectionID/items/create', upload.single('image'), async (req: express.Request, res: express.Response, next) => {
     const authToken: string = (req as any).user.token;
     let file = req.file;
     if (file === undefined) {
         // TODO: handle error here
         return;
     }
-    let collection = await getCollection(req.params.collectionID);
+    let user = await getUser(req, res);
+    if (user === null) {
+        return Promise.reject(new Error("Invalid user."));
+    }
+    let collection = await getCollection(req.params.collectionID, user);
     if (collection === null) {
-        return Promise.reject(new Error(`Error getting google id for ${req.params.collectionID}`)); 
+        return Promise.reject(new Error(`Invalid collection Id for ${req.params.collectionID}`)); 
     }
     const img_name = req.body.image_name;
     const description = req.body.description;
@@ -572,15 +620,24 @@ app.post('/collection/:collectionID/newitem', upload.single('image'), async (req
         // TODO: handle the tags.
         mediaResults.newMediaItemResults.forEach(async (newItem) => {
             console.log(`${newItem.mediaItem.filename} successfully uploaded.`);
-            // TODO:
-            // await database.none(`INSERT INTO items VALUES(
-            //     '${imageUUID}', '${img_name}', '${description}', '${newItem.mediaItem.id}', '${(collection as any).id}');`);
+            try {
+                let doc = db.doc(`Users/${(user as any).id}`)
+                    .collection("Collections")
+                    .doc((collection as any).id)
+                    .collection("Items")
+                    .doc();
+                
+                let data: DBItemCreate = {
+                    name: img_name,
+                    description: description,
+                    google_id: newItem.mediaItem.id,
+                }
+                await doc.set(data);
+            } catch(err) {
+                console.log("Error adding file to database");
+                console.log(err);
+            }
         })
-        // TODO: clear the media cache and thumbnail
-        const userId = (req.user as any).profile.id;
-        let key = `${userId}_${(collection as any).name}`;
-        // TODO:
-        // await thumbnailsItemCache.removeItem(key);
         res.redirect(`/collections/${(collection as any).name}`);
     }).catch((err: any) => {
         // TODO: handle error here:
