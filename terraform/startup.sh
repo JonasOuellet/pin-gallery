@@ -21,4 +21,4 @@ pip3 install tensorflow google-cloud-aiplatform
 
 gsutil -m cp -r gs://cloud-samples-data/ai-platform/flowers /opt/
 
-git clone https://github.com/JonasOuellet/pin-searcher.git /opt/code
+git clone --depth 1 https://github.com/JonasOuellet/pin-searcher.git /opt/code
