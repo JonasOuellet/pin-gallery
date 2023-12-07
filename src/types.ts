@@ -1,3 +1,5 @@
+// import type {Timestamp} from "@google-cloud/firestore";
+
 // Custom error that contains a status, title and a server message.
 class StatusError extends Error {
     status: number;
@@ -176,6 +178,12 @@ interface DBItemCreate {
     name: string,
     description: string,
     google_id: string,
+    timestamp: FirebaseFirestore.Timestamp
+}
+
+interface DBItem extends DBItemCreate{
+    base_url?: string,
+    base_url_fetch?: FirebaseFirestore.Timestamp
 }
 
 

@@ -8,7 +8,7 @@ import session from 'express-session';
 import winston from 'winston';
 import * as crypto from "crypto";
 
-import { Firestore } from "@google-cloud/firestore";
+import { Firestore, Query, Timestamp } from "@google-cloud/firestore";
 import { FirestoreStore } from '@google-cloud/connect-firestore';
 
 import { auth } from './auth.js';
@@ -385,23 +385,78 @@ app.get('/collections/:colname/itemimages/read', async (req: express.Request, re
             }
     
             let imgs = await collDoc.ref.collection("Items")
-                .select("base_url")
-                // TODO: set the limit from the request
-                .limit(4)
+                .orderBy("timestamp", "desc")
+                // we can't go further than 50 given google docs
+                .limit(50)
                 .get();
-    
-            let images: String[] = [];
-            // set the max size
-            for (let item of imgs.docs) {
-                let data = item.data() as DBItemCreate;
-                images.push(data.base_url);
+            let urls: (String | null)[] = [];
+            let toFetch: {
+                doc: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData, FirebaseFirestore.DocumentData>,
+                google_id: string,
+                index: number 
+            }[] = [];
+            let now = Timestamp.now();
+            // user a buffer of 5 min here. just to be sure the link is still valid
+            const HOUR = 55 * 60;
+            imgs.docs.forEach((item, index) => {
+                let data = item.data() as DBItem;
+                // check if already fetched and if the last fetch occured in less than a hour ago  (use 55 min in this case)
+                if (typeof(data.base_url_fetch) === 'undefined' || (now.seconds - data.base_url_fetch.seconds) > HOUR) {
+                    // need to fetch again
+                    urls.push(null);
+                    toFetch.push({
+                        doc: item,
+                        google_id: data.google_id,
+                        index: index
+                    });
+                } else {
+                    urls.push(data.base_url as any);
+                }
+            });
+
+            if (toFetch.length > 0) {
+                // fetch the image that need to be fetched
+                const authToken: string = (req as any).user.token;
+                let parameters = new URLSearchParams();
+                for (let id of toFetch){
+                    parameters.append('mediaItemIds', id.google_id);
+                }
+                let result = await fetch.default(
+                    config.apiEndpoint + '/v1/mediaItems:batchGet?' + parameters,
+                    {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + authToken
+                        }
+                    },
+                );
+                if (result.status !== 200) {
+                    throw new Error(`Error: Status Code: ${result.status}.  ${result.statusText}`)
+                }
+                let body = await result.json();
+                body.mediaItemResults.forEach((ret: any, index: number) => {
+                    if (typeof(ret.code) === 'undefined') {
+                        let f = toFetch[index];
+                        urls[f.index] = ret.mediaItem.baseUrl;
+                        // update db
+                        f.doc.ref.update({
+                            base_url_fetch: now,
+                            base_url: ret.mediaItem.baseUrl
+                        })
+                    }
+                })
             }
-            return res.status(200).send({ thumbnails: images });
+            urls = urls.filter((v) => v !== null);
+            return res.status(200).send({ thumbnails: urls });
+
+        } else {
+            return res.status(401).send('Unhautorized');
         }
     } catch (err) {
         console.log(err);
-    }
-    return res.status(401).send('Unhautorized');
+        return res.status(400).send('Error occured: ' + err);
+    };
 });
 
 
@@ -618,7 +673,7 @@ app.post('/collection/:collectionID/items/create', upload.single('image'), async
         }
         let mediaResults: NewMediaItemResults = await fetchRes.json();
         // TODO: handle the tags.
-        mediaResults.newMediaItemResults.forEach(async (newItem) => {
+        for (let newItem of mediaResults.newMediaItemResults) {
             console.log(`${newItem.mediaItem.filename} successfully uploaded.`);
             try {
                 let doc = db.doc(`Users/${(user as any).id}`)
@@ -631,19 +686,21 @@ app.post('/collection/:collectionID/items/create', upload.single('image'), async
                     name: img_name,
                     description: description,
                     google_id: newItem.mediaItem.id,
+                    timestamp: Timestamp.now()
                 }
                 await doc.set(data);
             } catch(err) {
                 console.log("Error adding file to database");
                 console.log(err);
             }
-        })
+        }
         res.redirect(`/collections/${(collection as any).name}`);
     }).catch((err: any) => {
         // TODO: handle error here:
         console.log("Error occured", err);
-        res.send("Error occured.");
+        res.redirect(`/collections/${(collection as any).name}`);
     });
+    
 });
 
 
