@@ -108,127 +108,127 @@ resource "google_artifact_registry_repository" "vectorizer" {
  * Network
  */
 
-resource "google_compute_network" "pins-search" {
-  name                    = "pins-search"
-  auto_create_subnetworks = false
-  routing_mode            = "GLOBAL"
+# resource "google_compute_network" "pins-search" {
+#   name                    = "pins-search"
+#   auto_create_subnetworks = false
+#   routing_mode            = "GLOBAL"
 
-  depends_on = [google_project_service.compute]
-}
+#   depends_on = [google_project_service.compute]
+# }
 
-// https://cloud.google.com/vpc/docs/subnets#ip-ranges
-resource "google_compute_subnetwork" "northamerica-northeast1" {
-  name          = "northamerica-northeast1"
-  ip_cidr_range = "10.128.0.0/20"
-  region        = "northamerica-northeast1"
-  network       = google_compute_network.pins-search.id
-}
+# // https://cloud.google.com/vpc/docs/subnets#ip-ranges
+# resource "google_compute_subnetwork" "northamerica-northeast1" {
+#   name          = "northamerica-northeast1"
+#   ip_cidr_range = "10.128.0.0/20"
+#   region        = "northamerica-northeast1"
+#   network       = google_compute_network.pins-search.id
+# }
 
-resource "google_compute_global_address" "psa-alloc" {
-  name          = "psa-alloc"
-  purpose       = "VPC_PEERING"
-  address_type  = "INTERNAL"
-  prefix_length = 16
-  network       = google_compute_network.pins-search.id
-}
+# resource "google_compute_global_address" "psa-alloc" {
+#   name          = "psa-alloc"
+#   purpose       = "VPC_PEERING"
+#   address_type  = "INTERNAL"
+#   prefix_length = 16
+#   network       = google_compute_network.pins-search.id
+# }
 
-resource "google_service_networking_connection" "psa" {
-  network                 = google_compute_network.pins-search.id
-  service                 = "servicenetworking.googleapis.com"
-  reserved_peering_ranges = [google_compute_global_address.psa-alloc.name]
+# resource "google_service_networking_connection" "psa" {
+#   network                 = google_compute_network.pins-search.id
+#   service                 = "servicenetworking.googleapis.com"
+#   reserved_peering_ranges = [google_compute_global_address.psa-alloc.name]
 
-  depends_on = [google_project_service.servicenetworking]
-}
+#   depends_on = [google_project_service.servicenetworking]
+# }
 
-/*
- * Compute Engine instance
- */
+# /*
+#  * Compute Engine instance
+#  */
 
-data "google_compute_default_service_account" "default" {
-  depends_on = [google_project_service.compute]
-}
+# data "google_compute_default_service_account" "default" {
+#   depends_on = [google_project_service.compute]
+# }
 
-resource "google_compute_instance" "query-runner" {
-  name         = "query-runner"
-  machine_type = "n1-standard-2"
-  zone         = "northamerica-northeast1-b"
+# resource "google_compute_instance" "query-runner" {
+#   name         = "query-runner"
+#   machine_type = "n1-standard-2"
+#   zone         = "northamerica-northeast1-b"
 
-  boot_disk {
-    initialize_params {
-      size  = "20"
-      type  = "pd-balanced"
-      image = "debian-cloud/debian-11"
-    }
-  }
+#   boot_disk {
+#     initialize_params {
+#       size  = "20"
+#       type  = "pd-balanced"
+#       image = "debian-cloud/debian-11"
+#     }
+#   }
 
-  network_interface {
-    network    = google_compute_network.pins-search.name
-    subnetwork = google_compute_subnetwork.northamerica-northeast1.name
+#   network_interface {
+#     network    = google_compute_network.pins-search.name
+#     subnetwork = google_compute_subnetwork.northamerica-northeast1.name
 
-    access_config {}
-  }
+#     access_config {}
+#   }
 
-  // metadata_startup_script = file("./startup.sh")
+#   metadata_startup_script = file("./startup.sh")
 
-  service_account {
-    email  = data.google_compute_default_service_account.default.email
-    scopes = ["cloud-platform"]
-  }
-}
+#   service_account {
+#     email  = data.google_compute_default_service_account.default.email
+#     scopes = ["cloud-platform"]
+#   }
+# }
 
-resource "google_compute_firewall" "allow-internal" {
-  name          = "pin-search-allow-internal"
-  network       = google_compute_network.pins-search.name
-  priority      = 65534
-  source_ranges = ["10.128.0.0/9"]
+# resource "google_compute_firewall" "allow-internal" {
+#   name          = "pin-search-allow-internal"
+#   network       = google_compute_network.pins-search.name
+#   priority      = 65534
+#   source_ranges = ["10.128.0.0/9"]
 
-  allow {
-    protocol = "icmp"
-  }
+#   allow {
+#     protocol = "icmp"
+#   }
 
-  allow {
-    protocol = "tcp"
-    ports    = ["0-65535"]
-  }
+#   allow {
+#     protocol = "tcp"
+#     ports    = ["0-65535"]
+#   }
 
-  allow {
-    protocol = "udp"
-    ports    = ["0-65535"]
-  }
-}
+#   allow {
+#     protocol = "udp"
+#     ports    = ["0-65535"]
+#   }
+# }
 
-resource "google_compute_firewall" "allow-ssh" {
-  name          = "pin-search-allow-ssh"
-  network       = google_compute_network.pins-search.name
-  priority      = 65534
-  source_ranges = ["0.0.0.0/0"]
+# resource "google_compute_firewall" "allow-ssh" {
+#   name          = "pin-search-allow-ssh"
+#   network       = google_compute_network.pins-search.name
+#   priority      = 65534
+#   source_ranges = ["0.0.0.0/0"]
 
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
-  }
-}
+#   allow {
+#     protocol = "tcp"
+#     ports    = ["22"]
+#   }
+# }
 
-/*
- * Updater
- */
+# /*
+#  * Updater
+#  */
 
-resource "google_service_account" "updater" {
-  account_id   = "updater"
-  display_name = "Service Account for updater service"
-}
+# resource "google_service_account" "updater" {
+#   account_id   = "updater"
+#   display_name = "Service Account for updater service"
+# }
 
-resource "google_artifact_registry_repository" "updater" {
-  location      = "northamerica-northeast1"
-  repository_id = "updater"
-  format        = "DOCKER"
+# resource "google_artifact_registry_repository" "updater" {
+#   location      = "northamerica-northeast1"
+#   repository_id = "updater"
+#   format        = "DOCKER"
 
-  depends_on = [google_project_service.artifactregistry]
-}
+#   depends_on = [google_project_service.artifactregistry]
+# }
 
-// https://cloud.google.com/vertex-ai/docs/general/access-control?hl=ja
-resource "google_project_iam_member" "updater-aiplatform-user" {
-  project = data.google_project.project.project_id
-  role    = "roles/aiplatform.user"
-  member  = "serviceAccount:${google_service_account.updater.email}"
-}
+# // https://cloud.google.com/vertex-ai/docs/general/access-control?hl=ja
+# resource "google_project_iam_member" "updater-aiplatform-user" {
+#   project = data.google_project.project.project_id
+#   role    = "roles/aiplatform.user"
+#   member  = "serviceAccount:${google_service_account.updater.email}"
+# }

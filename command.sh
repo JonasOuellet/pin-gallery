@@ -7,3 +7,6 @@ gloud auth login
 # to set project
 gcloud config set project $PROJECT_ID
 
+# initialise les resource avec terraform
+cd terraform
+terraform init
