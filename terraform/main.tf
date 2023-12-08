@@ -79,11 +79,11 @@ resource "google_storage_bucket" "pins" {
 }
 
 // https://cloud.google.com/storage/docs/access-control/iam-roles
-resource "google_storage_bucket_iam_member" "vectorizer-objectCreator" {
-  bucket = google_storage_bucket.pins.name
-  role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${google_service_account.vectorizer.email}"
-}
+// resource "google_storage_bucket_iam_member" "vectorizer-objectCreator" {
+//   bucket = google_storage_bucket.pins.name
+//   role   = "roles/storage.objectCreator"
+//   member = "serviceAccount:${google_service_account.vectorizer.email}"
+// }
 
 
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {config} from './config.js';
+import {config} from './my_config';
 import {Strategy as GoogleOAuthStrategy} from 'passport-google-oauth20';
 
 

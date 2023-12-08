@@ -12,21 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file contains the configuration options for this sample app.
-import { readFileSync } from "fs";
-
-
-interface DbConfig {
-    database: string,
-    port: number,
-    host: string,
-    user: string,
-    password: string,
+interface FireStoreConfig {
     secret: string
 }
 
 
-interface Config {
+export interface Config {
+    // google cloud project
+    projectName: string,
+
     // The OAuth client ID from the Google Developers console.
     oAuthClientID: string,
     // The OAuth client secret from the Google Developers console.
@@ -43,44 +37,13 @@ interface Config {
     // plus.me scopes.
     scopes: string[]
 
-    // The number of photos to load for search requests.
-    photosToLoad: number,
-
-    // The page size to use for search requests. 100 is reccommended.
-    searchPageSize: number
-
-    // The page size to use for the listing albums request. 50 is reccommended.
-    albumPageSize: 50,
-
     // The API end point to use. Do not change.
     apiEndpoint: string,
 
-    dataBase: DbConfig, 
-}
+    // storage
+    bucketName: string
 
-const PROJECT_CONFIG: any = JSON.parse(readFileSync("project_config.json", 'utf-8'));
+    // firestore
+    firestore: FireStoreConfig
 
-export let config: Config = {
-    oAuthClientID: PROJECT_CONFIG.clientID,
-    oAuthClientSecret: PROJECT_CONFIG.secret,
-    oAuthCallbackUrl: 'http://127.0.0.1:8080/auth/google/callback',
-    port: 8080,
-    scopes: [
-        'https://www.googleapis.com/auth/photoslibrary.readonly',
-        'https://www.googleapis.com/auth/photoslibrary.appendonly',
-        'https://www.googleapis.com/auth/photoslibrary',
-        'profile',
-    ],
-    photosToLoad: 150,
-    searchPageSize: 100,
-    albumPageSize: 50,
-    apiEndpoint: 'https://photoslibrary.googleapis.com',
-    dataBase: {
-        host: PROJECT_CONFIG.dbhost,
-        port: PROJECT_CONFIG.dbport,
-        database: PROJECT_CONFIG.dbname,
-        user: PROJECT_CONFIG.dbuser,
-        password: PROJECT_CONFIG.dbpassword,
-        secret: PROJECT_CONFIG.firestoreSecret
-    }
 }

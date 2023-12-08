@@ -11,8 +11,8 @@ import * as crypto from "crypto";
 import { Firestore, Query, Timestamp } from "@google-cloud/firestore";
 import { FirestoreStore } from '@google-cloud/connect-firestore';
 
-import { auth } from './auth.js';
-import { config } from './config.js';
+import { auth } from './auth';
+import { config } from './my_config';
 
 
 export const app: express.Express = express();
@@ -37,7 +37,7 @@ app.use(
             dataset: db,
             kind: 'express-sessions'
         }),
-        secret: config.dataBase.secret,
+        secret: config.firestore.secret,
         resave: false,
         saveUninitialized: true
     })

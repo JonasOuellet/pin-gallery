@@ -8,3 +8,6 @@ persist-storage
 persist-thumbnailsitemcache
 sessions
 uploads
+terraform/.terraform
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
