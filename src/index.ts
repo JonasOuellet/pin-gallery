@@ -27,8 +27,7 @@ app.set("views", "./views");
 // Set up static routes for hosted libraries.
 app.use(express.static("./static"));
 
-
-const projectID = process.env.PPROJECT_ID;
+const projectID = process.env.PROJECT_ID;
 
 // setup firestore
 // https://cloud.google.com/firestore/docs/emulator?hl=fr

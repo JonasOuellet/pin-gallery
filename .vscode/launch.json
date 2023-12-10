@@ -17,6 +17,7 @@
             ],
             "cwd": "${workspaceFolder}",
             "env": {
+                "PROJECT_ID": "focal-rig-407200"
                 // https://cloud.google.com/firestore/docs/emulator?hl=fr
                 // "FIRESTORE_EMULATOR_HOST": "127.0.0.1:8081"
             }
