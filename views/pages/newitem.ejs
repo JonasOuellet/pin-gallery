@@ -2,9 +2,6 @@
                 <h1>Ajouter a votre collection</h1>
                 <p>Ajoute un nouvel item a votre collection a partir de la source desire.</p>
                 <!-- Colored raised button -->
-                <button onclick="window.location.href='/collections/<%-collectionName-%>'" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
-                    Retour a la collection
-                </button>
                 <div class="mdl-tabs mdl-js-tabs mdl-js-ripple-effect" style="padding-bottom: 40px;">
                     <div class="mdl-tabs__tab-bar">
                         <a href="#webcam-panel" class="mdl-tabs__tab is-active">Web Cam</a>
@@ -41,7 +38,7 @@
                         <label for="imgRotation">Image Rotation:</label>
                         <input id="imgRotation" name="imgRotation" class="mdl-slider mdl-js-slider" type="range" min="-100" max="100" value="0">
                     </div>
-                    <form id="newimage" action="/collection/<%-collectionID-%>/items/create" enctype="multipart/form-data" method="post">
+                <form id="newimage" action="/item/create" enctype="multipart/form-data" method="post">
                         <div style="display: block; margin: 20px;">
                             <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="display: block;">
                                 <input class="mdl-textfield__input" type="text" name="image_name" id="sample3">

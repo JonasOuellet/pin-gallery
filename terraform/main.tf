@@ -18,16 +18,18 @@ variable "project_id" {
   type = string
 }
 
+
 terraform {
   required_version = "~> 1.3"
 
   required_providers {
     google = {
-      source  = "hashicorp/google"
-      version = "~> 4.53.1"
+      source = "hashicorp/google"
+      version = "5.8.0"
     }
   }
 }
+
 
 provider "google" {
   project = var.project_id
@@ -40,6 +42,10 @@ data "google_project" "project" {
 /*
  * APIs
  */
+
+resource "google_project_service" "iamapi" {
+  service = "iam.googleapis.com"
+}
 
 resource "google_project_service" "aiplatform" {
   service = "aiplatform.googleapis.com"
@@ -65,6 +71,52 @@ resource "google_project_service" "servicenetworking" {
   service = "servicenetworking.googleapis.com"
 }
 
+
+resource "google_project_service" "api_firestore_db" {
+  service = "firestore.googleapis.com"
+}
+
+
+/******************************************************
+  *  site run
+  *
+  */ 
+resource "google_service_account" "web-app" {
+  account_id   = "collector-web-app"
+  display_name = "Service Account collector web app cloud run"
+}
+
+# https://cloud.google.com/firestore/docs/security/iam?hl=fr
+// access to fire store
+resource "google_project_iam_member" "web-app" {
+  project = data.google_project.project.project_id
+  role    = "roles/datastore.owner"
+  member  = "serviceAccount:${google_service_account.web-app.email}"
+}
+
+
+resource "google_artifact_registry_repository" "web_app" {
+  location      = "northamerica-northeast1"
+  repository_id = "collector-web-app"
+  format        = "DOCKER"
+
+  depends_on = [google_project_service.artifactregistry]
+}
+
+
+/******************************************************
+ *  Fire store database
+ *
+ * https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/firestore_database
+ */
+
+ resource "google_firestore_database" "firestore_db" {
+  name               = "collector"
+  location_id        = "northamerica-northeast1"
+  type               = "FIRESTORE_NATIVE"
+  
+ }
+
 /******************************************************
  * Cloud Storage bucket
  *
@@ -72,10 +124,17 @@ resource "google_project_service" "servicenetworking" {
  */
 
 resource "google_storage_bucket" "pins" {
-  name                        = "${data.google_project.project.project_id}-pins"
+  name                        = "${data.google_project.project.project_id}-collector"
   location                    = "northamerica-northeast1"
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true
+}
+
+
+resource "google_project_iam_member" "storage-access" {
+  project = data.google_project.project.project_id
+  role    = "roles/storage.admin"
+  member  = "serviceAccount:${google_service_account.web-app.email}"
 }
 
 // https://cloud.google.com/storage/docs/access-control/iam-roles

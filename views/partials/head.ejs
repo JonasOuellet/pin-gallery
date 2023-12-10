@@ -23,51 +23,22 @@
 <body>
     <div class="mdl-layout mdl-js-layout">
         <header class="mdl-layout__header mdl-layout__header--scroll">
-            <div class="mdl-layout-icon"></div>
             <div class="mdl-layout__header-row">
                 <nav class="mdl-navigation">
-					<% let iscollections = typeof(headerTabs) !== "undefined";%>
-                    <a class="mdl-navigation__link <% if (!iscollections) { %> mdl-color--primary-dark <% } %>" href="/">Explorer</a>
-					<% if (loggedIn) { %>
-						<a class="mdl-navigation__link <% if (iscollections) { %> mdl-color--primary-dark <% } %>" href="/collections">Mes Collections</a>
-					<% } %>
-                </nav>
-                <div class="mdl-layout-spacer"></div>
-                <span style="margin-right: 10px;">Mon Profile</span>
-                <button
-                    id="profile-menu"
-                    class="mdl-button mdl-js-button mdl-button--icon">
-					<% if (loggedIn) { %>
-						<img class="mdl-chip__contact" src="<%= avatarUrl %>"></img>
-					<% } else { %>
-						<i class="material-icons">more_vert</i>
-					<% } %>
-                </button>
-
-                <ul class="mdl-menu mdl-menu--bottom-right mdl-js-menu mdl-js-ripple-effec"
-                        for="profile-menu">
-					<% if (loggedIn) { %>
-						<li class="mdl-menu__item"><a class="mdl-navigation__link" style="color: black;">Parametres</a></li>
-						<li class="mdl-menu__item"><a class="mdl-navigation__link" style="color: black;" href="/logout">Deconnection</a></li>
-					<% } else { %>
-						<li class="mdl-menu__item"><a class="mdl-navigation__link" style="color: black;" href="/auth/google">Se Connecter</a></li>
-					<% } %>
-                </ul>
-            </div>
-			<% if (typeof(headerTabs) !== "undefined") { %>
-				<div class="mdl-layout__header-row mdl-color--primary-dark">
+					<a class="mdl-navigation__link" href="/">Collection</a>
+				</nav>
+				<div class="mdl-layout-spacer"></div>
+				<% if (loggedIn) { %>
 					<nav class="mdl-navigation">
-						<% headerTabs.forEach((tab) => { %>
-							<% if (tab.name === "separator") { %> 
-								<span style="width: 2px; height: 60%; border-radius: 6px;" class="mdl-color--primary"></span>
-							<% } else { %>
-								<a <% if (tab.ref) { %> href="<%- tab.ref -%>" <% }; %> class="mdl-navigation__link" style="margin-bottom: 3px; <% if (tab.selected) {%> border-bottom: 3px solid rgb(255,64,129);<% }; %>"><%- tab.name -%>
-							<% } %>
-							</a>
-						<% }); %>
+						<a class="mdl-navigation__link" href="/">Profile</a>
+						<a class="mdl-navigation__link" href="/logout">Deconnection</a>
 					</nav>
-				</div>
-			<% }; %>
+				<% } else { %>
+					<nav class="mdl-navigation">
+						<a class="mdl-navigation__link" href="/login">Se Connecter</a>
+					</nav>
+				<% } %>
+            </div>
         </header>
 
         <main class="mdl-layout__content">

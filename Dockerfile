@@ -3,18 +3,16 @@
 FROM node:16-slim
 
 # Copy local code to the container image.
-ENV APP_HOME /app
-WORKDIR $APP_HOME
-COPY . ./
+WORKDIR collector-web-app
 
-# Install all (also dev to be able to build)
-RUN npm install --only=production
+# copy only usefull stuff
+COPY ./out ./out
+COPY ./static ./static
+COPY ./views ./views
+COPY ./package-lock.json ./package-lock.json
+COPY ./package.json ./package.json
 
-# build the javascript
-RUN npm run build
-
-#  uninstall the dev dependencies
-RUN npm prune --production
+RUN npm install --omit=dev
 
 # Run the web service on container startup.
 ENTRYPOINT [ "npm", "start" ]

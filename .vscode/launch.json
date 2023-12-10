@@ -18,7 +18,7 @@
             "cwd": "${workspaceFolder}",
             "env": {
                 // https://cloud.google.com/firestore/docs/emulator?hl=fr
-                "FIRESTORE_EMULATOR_HOST": "127.0.0.1:8081"
+                // "FIRESTORE_EMULATOR_HOST": "127.0.0.1:8081"
             }
             // "preLaunchTask": "npm: build"
         }

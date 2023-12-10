@@ -23,3 +23,21 @@ psql -U prostgres collectionneurs
 * Lister les images avec fancy box dans mes collections
 * Ajouter le time stamp sur les images dans la database
 * je vais surement devoir storer les images sur le server pour regarder les images similaires.  Une version plus low rez fera l'affaire.
+
+
+## Cloud Resource Manager API
+Need to activate cloud resource manager api
+
+
+mettre le bucket public:
+... -> Modifier l'acces
+ajouter un compte principal all user, lecture des objects.
+
+
+if fire store stop working:
+
+```
+firebase login --reauth
+
+gcloud auth application-default login
+```
