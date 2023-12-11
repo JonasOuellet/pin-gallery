@@ -15,6 +15,8 @@ import { FirestoreStore } from '@google-cloud/connect-firestore';
 
 import { unlinkSync } from 'fs';
 
+import { IndexHandler } from './ai_index';
+
 export const app: express.Express = express();
 
 app.set("view engine", "ejs");
@@ -42,6 +44,9 @@ const storage = new Storage({
 });
 const bucket = storage.bucket(projectID + "-collector");
 
+
+const indexHandler = new IndexHandler();
+indexHandler.createEndPoint().then((res) => console.log(res)).catch((err) => {console.log(err)});
 
 app.use(
     session({
@@ -248,19 +253,23 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
         const tags: String[] = [];
     }
     let url;
+    // create a new item so we can have the id
+    let doc = db.doc(`Users/${user.id}`)
+        .collection("items")
+        .doc();
     try {
-        let uploadRest = await bucket.upload((file as any).path, {destination: (file as any).filename});
-        unlinkSync((file as any).path);
+        let id = doc.id;
+        let destination = doc.id + '.' + (file as any).filename.split('.')[1];
+        let uploadRest = await bucket.upload((file as any).path, {destination: destination});
         url = (uploadRest[1] as any).mediaLink;
     } catch (err) {
         console.log(err);
         return res.redirect('/');
+    } finally {
+        unlinkSync((file as any).path);
+        try { await doc.delete() } catch (err) {};
     }
     try {
-        let doc = db.doc(`Users/${user.id}`)
-            .collection("items")
-            .doc();
-        
         let data: DBItem = {
             name: img_name,
             description: description,

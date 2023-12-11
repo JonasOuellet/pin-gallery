@@ -2,8 +2,17 @@
 # https://hub.docker.com/_/node
 FROM node:16-slim
 
+# install python
+RUN apt install python3
+
 # Copy local code to the container image.
 WORKDIR collector-web-app
+
+COPY ./search-engine/indexer ./search-engine/indexer
+
+# install requirements
+python -m pip install -r search-engine/indexer/requirement.txt
+
 
 # copy only usefull stuff
 COPY ./out ./out

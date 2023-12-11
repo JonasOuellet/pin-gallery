@@ -18,6 +18,10 @@ variable "project_id" {
   type = string
 }
 
+variable "region" {
+  type = string
+}
+
 
 terraform {
   required_version = "~> 1.3"
@@ -78,7 +82,7 @@ resource "google_project_service" "api_firestore_db" {
 
 
 /******************************************************
-  *  site run
+  *  web app
   *
   */ 
 resource "google_service_account" "web-app" {
@@ -86,17 +90,39 @@ resource "google_service_account" "web-app" {
   display_name = "Service Account collector web app cloud run"
 }
 
-# https://cloud.google.com/firestore/docs/security/iam?hl=fr
+// all the web app access:
+
+
+// set all access for now, juste for simplicity
+resource "google_project_iam_member" "web-app-owner" {
+  project = data.google_project.project.project_id
+  role    = "roles/owner"
+  member  = "serviceAccount:${google_service_account.web-app.email}"
+}
+
+// accesss for the vectorizer to update index.
+// https://cloud.google.com/vertex-ai/docs/general/access-control?hl=ja
+resource "google_project_iam_member" "web-app-aiplatform-user" {
+  project = data.google_project.project.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.web-app.email}"
+}
+
 // access to fire store
-resource "google_project_iam_member" "web-app" {
+# https://cloud.google.com/firestore/docs/security/iam?hl=fr
+resource "google_project_iam_member" "web-app-database" {
   project = data.google_project.project.project_id
   role    = "roles/datastore.owner"
   member  = "serviceAccount:${google_service_account.web-app.email}"
 }
 
 
+/******************************************************
+  *  Create artifact repository
+  *
+  */ 
 resource "google_artifact_registry_repository" "web_app" {
-  location      = "northamerica-northeast1"
+  location      = var.region
   repository_id = "collector-web-app"
   format        = "DOCKER"
 
@@ -117,177 +143,138 @@ resource "google_artifact_registry_repository" "web_app" {
   
  }
 
+
 /******************************************************
  * Cloud Storage bucket
  *
  * for embeddings
  */
 
-resource "google_storage_bucket" "pins" {
+resource "google_storage_bucket" "bucket" {
   name                        = "${data.google_project.project.project_id}-collector"
   location                    = "northamerica-northeast1"
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true
 }
 
-
-resource "google_project_iam_member" "storage-access" {
-  project = data.google_project.project.project_id
-  role    = "roles/storage.admin"
-  member  = "serviceAccount:${google_service_account.web-app.email}"
-}
+// ACCESS
 
 // https://cloud.google.com/storage/docs/access-control/iam-roles
-// resource "google_storage_bucket_iam_member" "vectorizer-objectCreator" {
-//   bucket = google_storage_bucket.pins.name
-//   role   = "roles/storage.objectCreator"
-//   member = "serviceAccount:${google_service_account.vectorizer.email}"
-// }
-
-
-
-/************************************************
- * Vectorizer job
- */
-/*
-resource "google_service_account" "vectorizer" {
-  account_id   = "vectorizer"
-  display_name = "Service Account for Vectorizer job"
+resource "google_storage_bucket_iam_member" "web-app-bucket" {
+  bucket = google_storage_bucket.bucket.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.web-app.email}"
 }
 
-resource "google_artifact_registry_repository" "vectorizer" {
-  location      = "northamerica-northeast1"
-  repository_id = "vectorizer"
-  format        = "DOCKER"
-
-  depends_on = [google_project_service.artifactregistry]
+// TODO: set so all user have acces
+resource "google_storage_bucket_iam_member" "all-read-bucket" {
+  bucket = google_storage_bucket.bucket.name
+  role   = "roles/storage.objectReader"
+  member = "allUsers"
 }
-*/
+
+
 /*
  * Network
  */
 
-# resource "google_compute_network" "pins-search" {
-#   name                    = "pins-search"
-#   auto_create_subnetworks = false
-#   routing_mode            = "GLOBAL"
+resource "google_compute_network" "collector-search" {
+  name                    = "collector-search"
+  auto_create_subnetworks = false
+  routing_mode            = "GLOBAL"
 
-#   depends_on = [google_project_service.compute]
-# }
+  depends_on = [google_project_service.compute]
+}
 
-# // https://cloud.google.com/vpc/docs/subnets#ip-ranges
-# resource "google_compute_subnetwork" "northamerica-northeast1" {
-#   name          = "northamerica-northeast1"
-#   ip_cidr_range = "10.128.0.0/20"
-#   region        = "northamerica-northeast1"
-#   network       = google_compute_network.pins-search.id
-# }
+// https://cloud.google.com/vpc/docs/subnets#ip-ranges
+resource "google_compute_subnetwork" "network-region" {
+  name          = var.region
+  ip_cidr_range = "10.128.0.0/20"
+  region        = var.region
+  network       = google_compute_network.collector-search.id
+}
 
-# resource "google_compute_global_address" "psa-alloc" {
-#   name          = "psa-alloc"
-#   purpose       = "VPC_PEERING"
-#   address_type  = "INTERNAL"
-#   prefix_length = 16
-#   network       = google_compute_network.pins-search.id
-# }
+resource "google_compute_global_address" "psa-alloc" {
+  name          = "psa-alloc"
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = 16
+  network       = google_compute_network.collector-search.id
+}
 
-# resource "google_service_networking_connection" "psa" {
-#   network                 = google_compute_network.pins-search.id
-#   service                 = "servicenetworking.googleapis.com"
-#   reserved_peering_ranges = [google_compute_global_address.psa-alloc.name]
+resource "google_service_networking_connection" "psa" {
+  network                 = google_compute_network.collector-search.id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.psa-alloc.name]
 
-#   depends_on = [google_project_service.servicenetworking]
-# }
+  depends_on = [google_project_service.servicenetworking]
+}
 
 # /*
 #  * Compute Engine instance
 #  */
 
-# data "google_compute_default_service_account" "default" {
-#   depends_on = [google_project_service.compute]
-# }
+data "google_compute_default_service_account" "default" {
+  depends_on = [google_project_service.compute]
+}
 
-# resource "google_compute_instance" "query-runner" {
-#   name         = "query-runner"
-#   machine_type = "n1-standard-2"
-#   zone         = "northamerica-northeast1-b"
+resource "google_compute_instance" "query-runner" {
+  name         = "query-runner"
+  machine_type = "n1-standard-2"
+  zone         = "${var.region}-b"
 
-#   boot_disk {
-#     initialize_params {
-#       size  = "20"
-#       type  = "pd-balanced"
-#       image = "debian-cloud/debian-11"
-#     }
-#   }
+  boot_disk {
+    initialize_params {
+      size  = "20"
+      type  = "pd-balanced"
+      image = "debian-cloud/debian-11"
+    }
+  }
 
-#   network_interface {
-#     network    = google_compute_network.pins-search.name
-#     subnetwork = google_compute_subnetwork.northamerica-northeast1.name
+  network_interface {
+    network    = google_compute_network.collector-search.name
+    subnetwork = google_compute_subnetwork.network-region.name
 
-#     access_config {}
-#   }
+    access_config {}
+  }
+  
+  metadata_startup_script = file("./startup.sh")
 
-#   metadata_startup_script = file("./startup.sh")
+  service_account {
+    email  = data.google_compute_default_service_account.default.email
+    scopes = ["cloud-platform"]
+  }
+}
 
-#   service_account {
-#     email  = data.google_compute_default_service_account.default.email
-#     scopes = ["cloud-platform"]
-#   }
-# }
+resource "google_compute_firewall" "allow-internal" {
+  name          = "collector-search-allow-internal"
+  network       = google_compute_network.collector-search.name
+  priority      = 65534
+  source_ranges = ["10.128.0.0/9"]
 
-# resource "google_compute_firewall" "allow-internal" {
-#   name          = "pin-search-allow-internal"
-#   network       = google_compute_network.pins-search.name
-#   priority      = 65534
-#   source_ranges = ["10.128.0.0/9"]
+  allow {
+    protocol = "icmp"
+  }
 
-#   allow {
-#     protocol = "icmp"
-#   }
+  allow {
+    protocol = "tcp"
+    ports    = ["0-65535"]
+  }
 
-#   allow {
-#     protocol = "tcp"
-#     ports    = ["0-65535"]
-#   }
+  allow {
+    protocol = "udp"
+    ports    = ["0-65535"]
+  }
+}
 
-#   allow {
-#     protocol = "udp"
-#     ports    = ["0-65535"]
-#   }
-# }
+resource "google_compute_firewall" "allow-ssh" {
+  name          = "collector-search-allow-ssh"
+  network       = google_compute_network.collector-search.name
+  priority      = 65534
+  source_ranges = ["0.0.0.0/0"]
 
-# resource "google_compute_firewall" "allow-ssh" {
-#   name          = "pin-search-allow-ssh"
-#   network       = google_compute_network.pins-search.name
-#   priority      = 65534
-#   source_ranges = ["0.0.0.0/0"]
-
-#   allow {
-#     protocol = "tcp"
-#     ports    = ["22"]
-#   }
-# }
-
-# /*
-#  * Updater
-#  */
-
-# resource "google_service_account" "updater" {
-#   account_id   = "updater"
-#   display_name = "Service Account for updater service"
-# }
-
-# resource "google_artifact_registry_repository" "updater" {
-#   location      = "northamerica-northeast1"
-#   repository_id = "updater"
-#   format        = "DOCKER"
-
-#   depends_on = [google_project_service.artifactregistry]
-# }
-
-# // https://cloud.google.com/vertex-ai/docs/general/access-control?hl=ja
-# resource "google_project_iam_member" "updater-aiplatform-user" {
-#   project = data.google_project.project.project_id
-#   role    = "roles/aiplatform.user"
-#   member  = "serviceAccount:${google_service_account.updater.email}"
-# }
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+}

@@ -1,5 +1,5 @@
-PROJECT_ID="focal-rig-407200"
-REGION="northamerica-northeast1"
+export PROJECT_ID="collector-407816"
+export REGION="northamerica-northeast1"
 
 # to login
 gcloud auth login
@@ -13,10 +13,18 @@ terraform init
 
 # confirm the plan
 # this will only validate the plan
-TF_VAR_project_id="$PROJECT_ID" terraform plan
+TF_VAR_project_id="$PROJECT_ID" TF_VAR_region="$REGION" terraform plan
 
 # apply the plan/create the resources.
-TF_VAR_project_id="$PROJECT_ID" terraform apply -auto-approve
+TF_VAR_project_id="$PROJECT_ID" TF_VAR_region="$REGION" terraform apply -auto-approve
+
+
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format "value(projectNumber)")
+
+gcloud ai index-endpoints create \
+  --display-name "Endpoint for collector index" \
+  --network "projects/$PROJECT_NUMBER/global/networks/collector-search" \
+  --region $REGION
 
 
 # to deploy the container
@@ -41,3 +49,4 @@ gcloud run deploy \
 #   --parallelism 2 \
 #   --tasks 2 \
 #   --execute-now
+
