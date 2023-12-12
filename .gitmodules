@@ -1,3 +1,0 @@
-[submodule "search-engine/searcher"]
-	path = search-engine/searcher
-	url = https://github.com/JonasOuellet/pin-searcher.git

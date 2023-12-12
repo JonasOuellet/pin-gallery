@@ -38,6 +38,20 @@
                         <label for="imgRotation">Image Rotation:</label>
                         <input id="imgRotation" name="imgRotation" class="mdl-slider mdl-js-slider" type="range" min="-100" max="100" value="0">
                     </div>
+                    
+                    <div style="text-align: center; margin-top: 20px;">
+                        <% if (indexExists)  { %>
+                            <button id="index_search"
+                                class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
+                            > Rechercher des items similaires
+                            </button>
+                            <div id="imageSearchResult" style="padding-top: 20px;">
+                                <div id="imageSearchBar" style="margin: auto; visibility: hidden;" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
+                            </div>
+                        <% } else { %>
+                            <p>Ajouter plus d'item pour creer l'index et pouvoir chercher les items similaires. (<%= itemCount %>/<%= itemCountNeeded %>) </p>
+                        <% } %>
+                    </div>
                 <form id="newimage" action="/item/create" enctype="multipart/form-data" method="post">
                         <div style="display: block; margin: 20px;">
                             <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="display: block;">

@@ -8,10 +8,11 @@ RUN apt install python3
 # Copy local code to the container image.
 WORKDIR collector-web-app
 
-COPY ./search-engine/indexer ./search-engine/indexer
+COPY ./vectorizer.py ./vectorizer.py
+COPY ./requirement.txt ./requirement.txt
 
 # install requirements
-python -m pip install -r search-engine/indexer/requirement.txt
+RUN python -m pip install -r requirement.txt
 
 
 # copy only usefull stuff

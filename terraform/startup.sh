@@ -19,6 +19,6 @@ apt-get update
 apt-get -y install python3-pip git
 pip3 install tensorflow google-cloud-aiplatform
 
-gsutil -m cp -r gs://focal-rig-407200 /opt/
+gsutil -m cp -r gs://collector-407816 /opt/
 
 git clone --depth 1 https://github.com/JonasOuellet/pin-searcher.git /opt/code

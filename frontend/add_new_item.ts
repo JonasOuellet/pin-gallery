@@ -1,3 +1,4 @@
+
 function getElemById<T>(id: string): T {
     let elem = document.getElementById(id);
     if (elem === null) {
@@ -76,9 +77,8 @@ class PhotoCapture {
     imagePosition: Point2D = Point2D.origin();
     _initialImagePosition: Point2D = Point2D.origin();
 
-    // selectionRect: Rect | null = null;
-    _selRectInitial: Point2D;
-    _selRectNew: Point2D;
+    _selRectInitial: Point2D | null;
+    _selRectNew: Point2D | null;
 
     rotation: number = 0;
 
@@ -87,8 +87,8 @@ class PhotoCapture {
         this.width = 1280;
         this.height = 720;
 
-        this._selRectInitial = Point2D.origin();
-        this._selRectNew =  new Point2D(this.width, this.height);
+        this._selRectInitial = null;
+        this._selRectNew = null;
 
         this.video = getElemById<HTMLVideoElement>("video");
         this.canvas = getElemById<HTMLCanvasElement>("canvas");
@@ -105,7 +105,10 @@ class PhotoCapture {
         this.image = null;
     }
 
-    getRect(): [number, number, number, number] {
+    getRect(): [number, number, number, number] | null {
+        if (this._selRectInitial === null || this._selRectNew === null) {
+            return null;
+        }
         let [minX, maxX] = [this._selRectInitial.x, this._selRectNew.x].sort();
         let [minY, maxY] = [this._selRectInitial.y, this._selRectNew.y].sort();
 
@@ -136,8 +139,11 @@ class PhotoCapture {
         this.canvasContext.save();
         let region = new Path2D();
         region.rect(0, 0, this.width, this.height);
-        region.rect(...this.getRect());
-        this.canvasContext.clip(region, "evenodd");
+        const rect = this.getRect();
+        if (rect){
+            region.rect(...rect);
+            this.canvasContext.clip(region, "evenodd");
+        }
 
         // Draw stuff that gets clipped
         this.canvasContext.fillStyle = "rgba(0, 0, 0, 0.8)";
@@ -214,7 +220,7 @@ class PhotoCapture {
             let relPos = new Point2D(event.x, event.y).sub(this._initalPos);
             relPos.x *= this.canvas.width / this.canvas.clientWidth;
             relPos.y *= this.canvas.height / this.canvas.clientHeight;
-            this._selRectNew = this._selRectInitial.add(relPos);
+            this._selRectNew = (this._selRectInitial as Point2D).add(relPos);
 
             event.preventDefault();
             event.stopPropagation();
@@ -278,6 +284,8 @@ class PhotoCapture {
     imgReceived(image: ImageBitmap) {
         this.image = image;
         this.imagePosition = new Point2D(image.width/2, image.height/2);
+        this._selRectInitial = Point2D.origin();
+        this._selRectNew =  new Point2D(image.width, image.height);
         this.drawImageAnimation();
     };
 
@@ -321,9 +329,39 @@ class PhotoCapture {
         }
     }
 
-    async setImageInput() {
+    async similarImage(): Promise<{results: {url: string, distance: number}[]}> {
+        // https://stackoverflow.com/questions/49826266/nodejs-cannot-upload-file-using-multer-via-ajax
+        return this.getImageFile()
+            .then((image) => {
+                let formData = new FormData();
+                formData.append("image", image, "newImage.png");
+                formData.append("count", "5");
+                return new Promise((resolve, reject) => {
+                    $.ajax({
+                        url: "/item/similarimage",
+                        data: formData,
+                        enctype: "multipart/form-data",
+                        method: "POST",
+                        processData: false,
+                        contentType: false,
+                        success: (data) => {
+                            resolve(data);
+                        },
+                        error: (xhr, status, error) => {
+                            reject(error);
+                        }
+                    })
+                })
+            })
+    }
+
+    async getImageFile(): Promise<File> {
         // https://stackoverflow.com/questions/23511792/attach-a-blob-to-an-input-of-type-file-in-a-form
-        let data = this.canvasContext.getImageData(...this.getRect());
+        const rect = this.getRect();
+        if (rect === null) {
+            return Promise.reject("Ajouter une image et selectionner la portion a utiliser.")
+        }
+        let data = this.canvasContext.getImageData(...rect);
         let img = await createImageBitmap(data);
         // https://stackoverflow.com/questions/52959839/convert-imagebitmap-to-blob
         // i need to draw it to a new canvas
@@ -343,11 +381,16 @@ class PhotoCapture {
         }
         let filename = "newImage";
         let file = new File([result], filename + ".png", {type: "image/png", lastModified: new Date().getTime()});
+        tmpCanvas.remove();
+        return file
+    }
+
+    async setImageInput() {
+        let file = await this.getImageFile();
         let container = new DataTransfer();
         container.items.add(file);
         let elem = getElemById<HTMLInputElement>("image_input");
         elem.files = container.files;
-        tmpCanvas.remove();
     }
 
     // Fill the photo with an indication that none has been
@@ -452,6 +495,37 @@ window.addEventListener(
                     console.log(err);
                 });
             });
+
+            $("#index_search").on("click", (event) => {
+                let elem = $("#imageSearchResult");
+                if (!elem) {
+                    throw new Error("Invalid element")
+                }
+                $("#imageSearchBar").css("visibility", "visible");
+                for (let node of elem.find("img")) {
+                    node.remove();
+                }
+                for (let node of elem.find("p")) {
+                    node.remove();
+                }
+                capture.similarImage()
+                    .then((res) => {
+                        for (let img of res.results) {
+                            elem.append($('<img />')
+                                .attr('src', img.url)
+                                .attr('style', "padding: 10px;")
+                            );
+                        }
+                    })
+                    .catch((err) => {
+                        console.log(err);
+                        elem.append($("<p />").text(`Une erreur est survenue: ${err}`));
+                    })
+                    .finally(() => {
+                        // remove loading
+                        $("#imageSearchBar").css("visibility", "hidden");
+                    });
+            })
         }
     },
     false

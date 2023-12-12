@@ -1,7 +1,6 @@
 import bodyParser from 'body-parser';
 import express from "express";
 import expressWinston from 'express-winston';
-import * as fetch from 'node-fetch';
 import * as multer from 'multer';
 import passport from 'passport';
 import { Strategy } from 'passport-local';
@@ -10,10 +9,10 @@ import winston from 'winston';
 import * as crypto from "crypto";
 
 import { Storage } from "@google-cloud/storage";
-import { Firestore, Query, Timestamp } from "@google-cloud/firestore";
+import { Firestore, Timestamp } from "@google-cloud/firestore";
 import { FirestoreStore } from '@google-cloud/connect-firestore';
 
-import { unlinkSync } from 'fs';
+import { unlink } from 'fs';
 
 import { IndexHandler } from './ai_index';
 
@@ -29,6 +28,7 @@ app.set("views", "./views");
 // Set up static routes for hosted libraries.
 app.use(express.static("./static"));
 
+const ITEM_TO_BUILD_INDEX = 10;
 const projectID = process.env.PROJECT_ID;
 
 // setup firestore
@@ -46,7 +46,6 @@ const bucket = storage.bucket(projectID + "-collector");
 
 
 const indexHandler = new IndexHandler();
-indexHandler.createEndPoint().then((res) => console.log(res)).catch((err) => {console.log(err)});
 
 app.use(
     session({
@@ -204,8 +203,30 @@ app.get('/login', (req: express.Request, res: express.Response) => {
     res.render('pages/login');
 })
 
-app.get('/newitem', (req: express.Request, res: express.Response) => {
-    res.render('pages/newitem')
+app.get('/newitem', async (req: express.Request, res: express.Response) => {
+    let user = req.user as User;
+    if (user === undefined) {
+        res.redirect('/');
+    }
+
+    if (indexHandler._isCreatingIndex) {
+        res.render('pages/newiteminvalid');
+    } else {
+        let indexExists = await indexHandler.indexExists();
+        res.locals.indexExists = indexExists;
+        if (!indexExists) {
+            // check how many image we have yet
+            let count = (await db.doc(`Users/${user.id}`)
+                .collection("items")
+                .count()
+                .get()
+            ).data().count;
+            res.locals.itemCount = count;
+            res.locals.itemCountNeeded = ITEM_TO_BUILD_INDEX;         
+        }
+
+        res.render('pages/newitem');
+    }
 })
 
 
@@ -258,15 +279,14 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
         .collection("items")
         .doc();
     try {
-        let id = doc.id;
         let destination = doc.id + '.' + (file as any).filename.split('.')[1];
         let uploadRest = await bucket.upload((file as any).path, {destination: destination});
         url = (uploadRest[1] as any).mediaLink;
     } catch (err) {
         console.log(err);
+        unlink((file as any).path, () => {});
         return res.redirect('/');
     } finally {
-        unlinkSync((file as any).path);
         try { await doc.delete() } catch (err) {};
     }
     try {
@@ -282,7 +302,70 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
         console.log(err);
         return res.redirect("/");
     }
+
+    if (await indexHandler.indexExists()) {
+        // update the index
+        indexHandler.addDataPoint(
+            (file as any).path,
+            doc.id
+        ).finally(() => {
+            // we need to delete the file here so we use it to update the index
+            unlink((file as any).path, () => {});
+        })
+    } else {
+        // we need to delete the file here so we use it to update the index
+        unlink((file as any).path, () => {});
+        // check how many item count
+        let count = await db.doc(`Users/${user.id}`)
+            .collection("items")
+            .count()
+            .get();
+
+        if (count.data().count >= 10) {
+            // generate index
+            indexHandler.startIndexCreation();
+        }
+    }
+
     res.redirect("/");
+});
+
+
+app.post('/item/similarimage', upload.single('image'), async (req: express.Request, res: express.Response) => {
+    let user = req.user as User;
+    if (user === undefined) {
+        res.redirect('/');
+    }
+
+    let file = req.file;
+    if (file === undefined) {
+        // TODO: handle error here
+        res.redirect('/');
+    }
+
+    // todo search
+    try {
+        let result = await indexHandler.find_similar_local((file as any).path)
+        let urls: {url: string, distance: number}[] = [];
+        let collection = db.doc(`Users/${user.id}`).collection("items");
+        for (let r of result) {
+            let doc = await collection.doc(r.id).get();
+            urls.push({
+                url: (doc.data() as any).url,
+                distance: r.distance
+            });
+        }
+        res.send({
+            results: urls
+        });
+
+    } catch (err) {
+        res.status(400).send("Error occured");
+    }
+    finally {
+        unlink((file as any).path, () => {});
+    }
+
 });
 
 

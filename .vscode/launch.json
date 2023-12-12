@@ -17,7 +17,7 @@
             ],
             "cwd": "${workspaceFolder}",
             "env": {
-                "PROJECT_ID": "focal-rig-407200",
+                "PROJECT_ID": "collector-407816",
                 "REGION": "northamerica-northeast1"
             }
         },
@@ -30,7 +30,7 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "env": {
-                "PROJECT_ID": "focal-rig-407200",
+                "PROJECT_ID": "collector-407816",
                 "REGION": "northamerica-northeast1"
             }
         },
@@ -43,19 +43,22 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "env": {
-                "PROJECT_ID": "focal-rig-407200",
+                "PROJECT_ID": "collector-407816",
                 "REGION": "northamerica-northeast1"
             }
         },        
         {
-            "name": "setup_index",
+            "name": "search",
             "type": "python",
             "request": "launch",
-            "program": "search-engine/setup-index.py",
+            "program": "vectorizer.py",
             "console": "integratedTerminal",
+            "args": [
+                "7eFg4SOYGun60NasdWhxZm.png",
+            ],
             "justMyCode": true,
             "env": {
-                "PROJECT_ID": "focal-rig-407200",
+                "PROJECT_ID": "collector-407816",
                 "REGION": "northamerica-northeast1"
             }
         }

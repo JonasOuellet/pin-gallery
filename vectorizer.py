@@ -8,11 +8,6 @@ from tempfile import NamedTemporaryFile
 import argparse
 
 from google.cloud import storage
-from google.cloud.aiplatform_v1 import (
-    IndexServiceClient,
-    UpsertDatapointsRequest,
-    IndexDatapoint,
-)
 
 if TYPE_CHECKING:
     from google.cloud.storage.blob import Blob
@@ -23,23 +18,16 @@ class TEmbedding(TypedDict):
     embedding: str
 
 
-PROJECT_ID = os.environ["PROJECT_ID"]
-REGION = os.environ["REGION"]
-
-BUCKET_NAME = f"{PROJECT_ID}-collector"
-
-INDEX_NAME = "collector"
-
-
-parser = argparse.ArgumentParser("Indexer")
-parser.add_argument("files", nargs="*")
-parser.add_argument("--missing", "-m", action="store_true")
-
-
 model = None
 
 
-def vectorize(blob: "Blob") -> str:
+def vectorize_file(filename: str) -> list[float]:
+    import tensorflow as tf
+    raw = tf.io.read_file(filename)
+    return vectorize(raw, Path(filename).suffix)
+
+
+def vectorize(raw, ext) -> list[float]:
     global model
     import tensorflow as tf
     import numpy as np
@@ -47,29 +35,43 @@ def vectorize(blob: "Blob") -> str:
     if model is None:
         model = tf.keras.applications.EfficientNetB0(include_top=False, pooling="avg")
 
-    with NamedTemporaryFile(prefix="updater") as temp:
-        blob.download_to_filename(temp.name)
-        raw = tf.io.read_file(temp.name)
-
-    extension = Path(blob.name).suffix
-
-    if extension.lower() == '.png':
+    if ext.lower() == '.png':
         image = tf.image.decode_png(raw, channels=3)
-    elif extension.lower() in ['jpeg', 'jpg']:
+    elif ext.lower() in ['.jpeg', '.jpg']:
         image = tf.image.decode_jpeg(raw, channels=3)
     else:
-        raise Exception(f"Invalid extension: {extension}")
+        raise Exception(f"Invalid extension: {ext}")
     
     # https://keras.io/examples/vision/image_classification_efficientnet_fine_tuning/
-    resized = tf.image.resize_with_pad(image, 224, 224)
+    # should I use pad here ?
+    resized = tf.image.resize(image, [224, 224])
 
     return model.predict(np.array([resized.numpy()]))[0].tolist()
 
 
+
+def vectorize_blob(blob: "Blob") -> list[float]:
+    import tensorflow as tf
+
+    with NamedTemporaryFile(prefix="updater") as temp:
+        blob.download_to_filename(temp.name)
+        raw = tf.io.read_file(temp.name)
+
+    return vectorize(raw, Path(blob.name).suffix)
+
+
+
+parser = argparse.ArgumentParser("Indexer")
+parser.add_argument("files", nargs="*")
+parser.add_argument("--missing", "-m", action="store_true")
+
+
 if __name__ == "__main__":
     args = parser.parse_args()
-    bucket = storage.Client(project=PROJECT_ID).bucket(BUCKET_NAME)
     if args.missing:
+        PROJECT_ID = os.environ["PROJECT_ID"]
+        BUCKET_NAME = f"{PROJECT_ID}-collector"
+        bucket = storage.Client(project=PROJECT_ID).bucket(BUCKET_NAME)
         embeddings_file = "embeddings/index.json"
         embeddings: list[TEmbedding] = []
         new_embbeddings: list[TEmbedding] = []
@@ -93,7 +95,7 @@ if __name__ == "__main__":
 
             # vectorise this file and add it to the index
             print(f"Vectorizing {blob_path}...")
-            embedding = vectorize(blob)
+            embedding = vectorize_blob(blob)
             updated = True
             new_embbeddings.append({"id": blob_path.stem, "embedding": embedding})
 
@@ -106,21 +108,8 @@ if __name__ == "__main__":
         else:
             print(f"Nothing to update.")
     else:
-        API_ENDPOINT = f"{REGION}-aiplatform.googleapis.com"
-        index = IndexServiceClient(client_options={"api_endpoint": API_ENDPOINT})
-
-        datapoints = [] 
         for f in args.files:
-            blob = bucket.blob(f)
-            blob_path = Path(f)
-            embedding = vectorize(blob)
-
-            # https://github.com/googleapis/python-aiplatform/blob/v1.22.0/google/cloud/aiplatform_v1/types/index.py#L183
-            datapoints.append(IndexDatapoint(datapoint_id=blob_path.stem, feature_vector=embedding))
-
-        # https://github.com/googleapis/python-aiplatform/blob/v1.22.0/google/cloud/aiplatform_v1/types/index_service.py#L250
-        upsert_req = UpsertDatapointsRequest(index=INDEX_NAME, datapoints=datapoints)
-
-        # https://github.com/googleapis/python-aiplatform/blob/v1.22.0/google/cloud/aiplatform_v1/services/index_service/client.py#L1089
-        response = index.upsert_datapoints(request=upsert_req)
-        print(response)
+            filename = Path(f)
+            result = vectorize_file(f)
+            with open(filename.with_suffix('.json'), mode='w') as w:
+                json.dump(result, w)

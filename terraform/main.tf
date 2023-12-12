@@ -47,6 +47,10 @@ data "google_project" "project" {
  * APIs
  */
 
+resource "google_project_service" "cloudservice" {
+  service = "cloudresourcemanager.googleapis.com"
+}
+
 resource "google_project_service" "iamapi" {
   service = "iam.googleapis.com"
 }
@@ -162,119 +166,13 @@ resource "google_storage_bucket" "bucket" {
 // https://cloud.google.com/storage/docs/access-control/iam-roles
 resource "google_storage_bucket_iam_member" "web-app-bucket" {
   bucket = google_storage_bucket.bucket.name
-  role   = "roles/storage.objectCreator"
+  role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.web-app.email}"
 }
 
 // TODO: set so all user have acces
 resource "google_storage_bucket_iam_member" "all-read-bucket" {
   bucket = google_storage_bucket.bucket.name
-  role   = "roles/storage.objectReader"
+  role   = "roles/storage.objectViewer"
   member = "allUsers"
-}
-
-
-/*
- * Network
- */
-
-resource "google_compute_network" "collector-search" {
-  name                    = "collector-search"
-  auto_create_subnetworks = false
-  routing_mode            = "GLOBAL"
-
-  depends_on = [google_project_service.compute]
-}
-
-// https://cloud.google.com/vpc/docs/subnets#ip-ranges
-resource "google_compute_subnetwork" "network-region" {
-  name          = var.region
-  ip_cidr_range = "10.128.0.0/20"
-  region        = var.region
-  network       = google_compute_network.collector-search.id
-}
-
-resource "google_compute_global_address" "psa-alloc" {
-  name          = "psa-alloc"
-  purpose       = "VPC_PEERING"
-  address_type  = "INTERNAL"
-  prefix_length = 16
-  network       = google_compute_network.collector-search.id
-}
-
-resource "google_service_networking_connection" "psa" {
-  network                 = google_compute_network.collector-search.id
-  service                 = "servicenetworking.googleapis.com"
-  reserved_peering_ranges = [google_compute_global_address.psa-alloc.name]
-
-  depends_on = [google_project_service.servicenetworking]
-}
-
-# /*
-#  * Compute Engine instance
-#  */
-
-data "google_compute_default_service_account" "default" {
-  depends_on = [google_project_service.compute]
-}
-
-resource "google_compute_instance" "query-runner" {
-  name         = "query-runner"
-  machine_type = "n1-standard-2"
-  zone         = "${var.region}-b"
-
-  boot_disk {
-    initialize_params {
-      size  = "20"
-      type  = "pd-balanced"
-      image = "debian-cloud/debian-11"
-    }
-  }
-
-  network_interface {
-    network    = google_compute_network.collector-search.name
-    subnetwork = google_compute_subnetwork.network-region.name
-
-    access_config {}
-  }
-  
-  metadata_startup_script = file("./startup.sh")
-
-  service_account {
-    email  = data.google_compute_default_service_account.default.email
-    scopes = ["cloud-platform"]
-  }
-}
-
-resource "google_compute_firewall" "allow-internal" {
-  name          = "collector-search-allow-internal"
-  network       = google_compute_network.collector-search.name
-  priority      = 65534
-  source_ranges = ["10.128.0.0/9"]
-
-  allow {
-    protocol = "icmp"
-  }
-
-  allow {
-    protocol = "tcp"
-    ports    = ["0-65535"]
-  }
-
-  allow {
-    protocol = "udp"
-    ports    = ["0-65535"]
-  }
-}
-
-resource "google_compute_firewall" "allow-ssh" {
-  name          = "collector-search-allow-ssh"
-  network       = google_compute_network.collector-search.name
-  priority      = 65534
-  source_ranges = ["0.0.0.0/0"]
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
-  }
 }
