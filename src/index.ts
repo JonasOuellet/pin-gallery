@@ -44,7 +44,6 @@ const storage = new Storage({
 });
 const bucket = storage.bucket(projectID + "-collector");
 
-
 const indexHandler = new IndexHandler();
 
 app.use(

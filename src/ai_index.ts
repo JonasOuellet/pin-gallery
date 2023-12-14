@@ -1,9 +1,21 @@
 import * as ai from "@google-cloud/aiplatform";
 import { ProjectsClient } from "@google-cloud/resource-manager";
 import { google } from "@google-cloud/aiplatform/build/protos/protos";
-import { spawn } from "child_process";
+import { spawn, ChildProcessWithoutNullStreams } from "child_process";
 import { readFile} from "fs/promises";
+import { Socket, createServer} from "net";
 import { unlink } from "fs";
+
+
+async function getPortFree(): Promise<number> {
+    return new Promise( res => {
+        const srv = createServer();
+        srv.listen(0, () => {
+            const port = (srv.address() as any).port
+            srv.close((err) => res(port))
+        });
+    })
+}
 
 
 export class IndexHandler {
@@ -21,6 +33,10 @@ export class IndexHandler {
     _indexId: string | null = null;
 
     _isCreatingIndex: boolean = false;
+
+    _pythonProcess: ChildProcessWithoutNullStreams | null = null;
+
+    _pythonPort: number = 0;
 
     constructor() {
         if (!process.env.PROJECT_ID) {
@@ -40,6 +56,42 @@ export class IndexHandler {
         this._endPointClient = new ai.IndexEndpointServiceClient ({
             apiEndpoint: `${this._region}-aiplatform.googleapis.com`,
             projectId: this._project_id
+        });
+    }
+
+    async send_vectorizer_command(command: string): Promise<any> {
+        // spawn process
+        // if exit code is not null this means that the process is down.
+        if (this._pythonProcess === null || this._pythonProcess.exitCode !== null) {
+            this._pythonPort = await getPortFree();
+            this._pythonProcess = spawn("python", ["vectorizer.py", "serve", this._pythonPort.toString()]);
+            this._pythonProcess.stdout.on("data", (chunk: Buffer) => console.log(chunk.toString()));
+            this._pythonProcess.stderr.on("data", (chunk: Buffer) => console.log(chunk.toString()));
+            
+        };
+        return new Promise((resolve, reject) => {
+            let socket = new Socket();
+            socket.on("error", (err) => {
+                reject(err);
+            })
+            socket.on("data", (data) => {
+                let result = JSON.parse(data.toString());
+                if (result.error) {
+                    reject(result.error);
+                } else {
+                    resolve(result);
+                }
+            })
+            socket.on("timeout", () => {
+                reject(new Error("Socket timed out."))
+            })
+
+            socket.connect({port: this._pythonPort});
+            socket.write(command, (err) => {
+                if (err) {
+                    reject(err);
+                }
+            })
         });
     }
 
@@ -181,7 +233,7 @@ export class IndexHandler {
         if (endPoint !== null) {
             return [endPoint, null, null];
         }
-        let projectNumber = await this.projectNumber();
+        // let projectNumber = await this.projectNumber();
         const [operation] = await this._endPointClient.createIndexEndpoint({
             parent: this._parentPath(),
             indexEndpoint: {
@@ -262,28 +314,11 @@ export class IndexHandler {
     }
 
     async vectorize_local_file(filename: string): Promise<number[]> {
-        return new Promise<number[]>((resolve, reject) => {
-            const process = spawn("python", ["vectorizer.py", filename]);
-        
-            process.stdout.on('data', (data) => {
-                console.log(`Process: ${data}`);
-            })
-            
-            process.stderr.on('data', (data) => {
-                console.log(`Process Error: ${data}`);
-            })
-
-            process.on("close", async (code) => {
-                if (code != 0) {
-                    reject(new Error(`Vectorization process ended with exit code ${code}`));
-                }
-
-                // check if file exists
-                const resultFile = filename.split('.')[0] + '.json'
-                let data = JSON.parse(await readFile(resultFile, {encoding: 'ascii'}));
-                unlink(resultFile, (err) => {if (err) {console.log(`Couldn't delete file ${resultFile}. ${err}`)}});
-                resolve(data);
-            })
+        return this.send_vectorizer_command(`vectorize ${filename}`).then(async (result: {filepath: string}) => {
+            // check if file exists
+            let data = JSON.parse(await readFile(result.filepath, {encoding: 'ascii'}));
+            unlink(result.filepath, (err) => {if (err) {console.log(`Couldn't delete file ${result.filepath}. ${err}`)}});
+            return data;
         })
     }
 

@@ -52,10 +52,8 @@
             "type": "python",
             "request": "launch",
             "program": "vectorizer.py",
+            "args": ["serve"],
             "console": "integratedTerminal",
-            "args": [
-                "7eFg4SOYGun60NasdWhxZm.png",
-            ],
             "justMyCode": true,
             "env": {
                 "PROJECT_ID": "collector-407816",

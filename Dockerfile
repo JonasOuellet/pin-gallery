@@ -1,9 +1,13 @@
-# Use the official NodeJS image.
-# https://hub.docker.com/_/node
-FROM node:16-slim
+# to build a docker file with python and node.
+# https://codepal.ai/dockerfile-writer.py/query/wrUIAqfT/dockerfile-python-nodejs
+FROM python:3.9.2
 
-# install python
-RUN apt install python3
+# Set environment variables for configuration and to set defaults
+ENV NODE_VERSION=20
+ 
+# Install Node.js
+RUN curl -sL https://deb.nodesource.com/setup_$NODE_VERSION.x | bash -
+RUN apt-get install -y nodejs
 
 # Copy local code to the container image.
 WORKDIR collector-web-app
@@ -13,7 +17,6 @@ COPY ./requirement.txt ./requirement.txt
 
 # install requirements
 RUN python -m pip install -r requirement.txt
-
 
 # copy only usefull stuff
 COPY ./out ./out
