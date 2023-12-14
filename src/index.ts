@@ -265,7 +265,7 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
     let file = req.file;
     if (file === undefined) {
         // TODO: handle error here
-        res.redirect('/');
+        return res.redirect('/');
     }
     if (req.body.tags) {
         const tags = (req.body.tags as string).split(';');
@@ -278,12 +278,12 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
         .collection("items")
         .doc();
     try {
-        let destination = doc.id + '.' + (file as any).filename.split('.')[1];
-        let uploadRest = await bucket.upload((file as any).path, {destination: destination});
+        let destination = doc.id + '.' + file.filename.split('.')[1];
+        let uploadRest = await bucket.upload(file.path, {destination: destination});
         url = (uploadRest[1] as any).mediaLink;
     } catch (err) {
         console.log(err);
-        unlink((file as any).path, () => {});
+        unlink(file.path, () => {});
         return res.redirect('/');
     } finally {
         try { await doc.delete() } catch (err) {};
@@ -305,15 +305,15 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
     if (await indexHandler.indexExists()) {
         // update the index
         indexHandler.addDataPoint(
-            (file as any).path,
+            file.path,
             doc.id
         ).finally(() => {
             // we need to delete the file here so we use it to update the index
-            unlink((file as any).path, () => {});
+            if (file) { unlink(file.path, () => {}); }
         })
     } else {
         // we need to delete the file here so we use it to update the index
-        unlink((file as any).path, () => {});
+        unlink(file.path, () => {});
         // check how many item count
         let count = await db.doc(`Users/${user.id}`)
             .collection("items")
@@ -333,18 +333,17 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
 app.post('/item/similarimage', upload.single('image'), async (req: express.Request, res: express.Response) => {
     let user = req.user as User;
     if (user === undefined) {
-        res.redirect('/');
+        return res.status(400).send("Invalid user.");
     }
-
+    
     let file = req.file;
     if (file === undefined) {
         // TODO: handle error here
-        res.redirect('/');
+        return res.status(400).send("File not defined.");
     }
 
-    // todo search
     try {
-        let result = await indexHandler.find_similar_local((file as any).path)
+        let result = await indexHandler.find_similar_local(file.path)
         let urls: {url: string, distance: number}[] = [];
         let collection = db.doc(`Users/${user.id}`).collection("items");
         for (let r of result) {
@@ -362,7 +361,7 @@ app.post('/item/similarimage', upload.single('image'), async (req: express.Reque
         res.status(400).send("Error occured");
     }
     finally {
-        unlink((file as any).path, () => {});
+        unlink(file.path, () => {});
     }
 
 });

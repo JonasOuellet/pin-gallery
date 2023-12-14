@@ -227,40 +227,38 @@ class PhotoCapture {
         }
     }
 
-    initVideoStream() {
+    init() {
         navigator.mediaDevices
             .getUserMedia({ video: true, audio: false })
             .then((stream) => {
                 this.stream = stream;
                 this.video.srcObject = stream;
                 this.video.play();
-                this.initCallbacks();
+                // setup camera event
+                this.video.addEventListener(
+                    "canplay",
+                    (ev) => {
+                        if (!this.streaming) {
+                            this.streaming = true;
+                        }
+                    },
+                    false,
+                );
+            
+                getElemById<HTMLButtonElement>("captureBtn").addEventListener(
+                    "click",
+                    (ev) => {
+                        this.takePicture();
+                        ev.preventDefault();
+                    },
+                    false,
+                );
             })
             .catch((err) => {
                 console.error(`Couldn't find camera: ${err}`);
             });
-    }
-
-    initCallbacks() {
-        this.video.addEventListener(
-            "canplay",
-            (ev) => {
-                if (!this.streaming) {
-                    this.streaming = true;
-                }
-            },
-            false,
-        );
-
-        getElemById<HTMLButtonElement>("captureBtn").addEventListener(
-            "click",
-            (ev) => {
-                this.takePicture();
-                ev.preventDefault();
-            },
-            false,
-        );
-
+    
+        // setup other event
         this.canvas.addEventListener("mousedown", (event) => this.beginMoving(event));
         this.canvas.addEventListener("contextmenu", (event) => {event.preventDefault()});
       
@@ -340,7 +338,6 @@ class PhotoCapture {
                     $.ajax({
                         url: "/item/similarimage",
                         data: formData,
-                        enctype: "multipart/form-data",
                         method: "POST",
                         processData: false,
                         contentType: false,
@@ -461,7 +458,7 @@ window.addEventListener(
         if (!showViewLiveResultButton()) {
             let capture = new PhotoCapture;
             capture.clearPhoto();
-            capture.initVideoStream();
+            capture.init();
 
             let tagsText = getElemById<HTMLInputElement>("tag-input");
             tagsText.addEventListener("keydown", (event) => {
