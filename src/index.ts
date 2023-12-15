@@ -394,7 +394,12 @@ app.get('/items/read', async (req: express.Request, res: express.Response) => {
 });
 
 
-const port = parseInt(process.env.PORT || "0") || 8080;
-app.listen(port, () => {
-    console.log(`Listening on port ${port}`);
-});
+indexHandler
+    .startVectorizer()
+    .then( (_) => {return indexHandler.generateIndex()})
+    .then(() => {
+        const port = parseInt(process.env.PORT || "0") || 8080;
+        app.listen(port, () => {
+            console.log(`Listening on port ${port}`);
+        });
+    });

@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import TypedDict, TYPE_CHECKING
 from tempfile import NamedTemporaryFile
 
+import tensorflow as tf
+import numpy as np
+
 import socket
 
 from google.cloud import storage
@@ -19,7 +22,7 @@ class TEmbedding(TypedDict):
     embedding: str
 
 
-model = None
+MODEL = tf.keras.applications.EfficientNetB0(include_top=False, pooling="avg")
 
 
 def vectorize_file(filename: str) -> list[float]:
@@ -29,14 +32,6 @@ def vectorize_file(filename: str) -> list[float]:
 
 
 def vectorize(raw, ext) -> list[float]:
-    global model
-
-    import tensorflow as tf
-    import numpy as np
-
-    if model is None:
-        model = tf.keras.applications.EfficientNetB0(include_top=False, pooling="avg")
-
     if ext.lower() == '.png':
         image = tf.image.decode_png(raw, channels=3)
     elif ext.lower() in ['.jpeg', '.jpg']:
@@ -48,7 +43,7 @@ def vectorize(raw, ext) -> list[float]:
     # should I use pad here ?
     resized = tf.image.resize(image, [224, 224])
 
-    result = model.predict(np.array([resized.numpy()]))[0].tolist()
+    result = MODEL.predict(np.array([resized.numpy()]))[0].tolist()
 
     return result 
 
@@ -69,7 +64,49 @@ def cmd_vectorize_file(f: str):
     out = filename.with_suffix('.json')
     with open(out, mode='w') as w:
         json.dump(result, w)
-    return out 
+    return out
+
+
+def cmd_generate_missing() -> int:
+    PROJECT_ID = os.environ["PROJECT_ID"]
+    BUCKET_NAME = f"{PROJECT_ID}-collector"
+
+    bucket = storage.Client(project=PROJECT_ID).bucket(BUCKET_NAME)
+    embeddings_file = "embeddings/index.json"
+    embeddings: list[TEmbedding] = []
+    new_embbeddings: list[TEmbedding] = []
+    existing = set()
+    if current_index_blob := bucket.get_blob(embeddings_file):
+        for line in current_index_blob.download_as_text().splitlines():
+            index_data: TEmbedding = json.loads(line)
+            existing.add(index_data["id"])
+            embeddings.append(index_data)
+    updated = False
+    for blob in bucket.list_blobs():
+        blob: "Blob" = blob
+        if blob.name == embeddings_file:
+            continue
+
+        blob_path = Path(blob.name)
+        if blob_path.stem in existing:
+            continue
+
+        # vectorise this file and add it to the index
+        print(f"Vectorizing {blob_path}...")
+        embedding = vectorize_blob(blob)
+        updated = True
+        new_embbeddings.append({"id": blob_path.stem, "embedding": embedding})
+
+    if updated:
+        # append new embbeddings to the files.
+        with bucket.blob(embeddings_file).open(mode="w") as f:
+            for datapoint in chain(embeddings, new_embbeddings):
+                f.write(json.dumps(datapoint) + "\n")
+        print(f"index.json successfully updated with {len(new_embbeddings)} new indexes.")
+        return len(new_embbeddings)
+    else:
+        print(f"Nothing to update.")
+        return 0
 
 
 if __name__ == "__main__":
@@ -91,44 +128,11 @@ if __name__ == "__main__":
                         file = commands[1]
                         res = cmd_vectorize_file(file)
                         response = {"filepath": res.as_posix()}
+                    elif commands[0] == "status":
+                        response = {"status": "running"}
+                    elif commands[0] == "missing":
+                        count = cmd_generate_missing()
+                        response = {"status": count}
                 except Exception as e:
                     response = {"error": str(e)}
                 conn.sendall(json.dumps(response).encode())
-    else:
-        PROJECT_ID = os.environ["PROJECT_ID"]
-        BUCKET_NAME = f"{PROJECT_ID}-collector"
-
-        bucket = storage.Client(project=PROJECT_ID).bucket(BUCKET_NAME)
-        embeddings_file = "embeddings/index.json"
-        embeddings: list[TEmbedding] = []
-        new_embbeddings: list[TEmbedding] = []
-        existing = set()
-        if current_index_blob := bucket.get_blob(embeddings_file):
-            for line in current_index_blob.download_as_text().splitlines():
-                index_data: TEmbedding = json.loads(line)
-                existing.add(index_data["id"])
-                embeddings.append(index_data)
-        updated = False
-        for blob in bucket.list_blobs():
-            blob: "Blob" = blob
-            if blob.name == embeddings_file:
-                continue
-
-            blob_path = Path(blob.name)
-            if blob_path.stem in existing:
-                continue
-
-            # vectorise this file and add it to the index
-            print(f"Vectorizing {blob_path}...")
-            embedding = vectorize_blob(blob)
-            updated = True
-            new_embbeddings.append({"id": blob_path.stem, "embedding": embedding})
-
-        if updated:
-            # append new embbeddings to the files.
-            with bucket.blob(embeddings_file).open(mode="w") as f:
-                for datapoint in chain(embeddings, new_embbeddings):
-                    f.write(json.dumps(datapoint) + "\n")
-            print(f"index.json successfully updated with {len(new_embbeddings)} new indexes.")
-        else:
-            print(f"Nothing to update.")
