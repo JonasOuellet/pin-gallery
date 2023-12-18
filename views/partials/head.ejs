@@ -26,11 +26,14 @@
             <div class="mdl-layout__header-row mdl-layout--large-screen-only">
                 <nav class="mdl-navigation">
 					<a class="mdl-navigation__link" href="/">Collection</a>
+					<% if (loggedIn) { %>
+						<a class="mdl-navigation__link" href="/newitem">Ajouter un item</a>
+					<% } %>
 				</nav>
 				<div class="mdl-layout-spacer"></div>
 				<% if (loggedIn) { %>
 					<nav class="mdl-navigation">
-						<a class="mdl-navigation__link" href="/">Profile</a>
+						<a class="mdl-navigation__link" href="/profile">Profile</a>
 						<a class="mdl-navigation__link" href="/logout">Deconnection</a>
 					</nav>
 				<% } else { %>

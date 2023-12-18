@@ -33,6 +33,7 @@ export class IndexHandler {
     _indexId: string | null = null;
 
     _isCreatingIndex: boolean = false;
+    _isUndeployingIndex: boolean = false;
 
     _pythonProcess: ChildProcessWithoutNullStreams | null = null;
 
@@ -149,13 +150,14 @@ export class IndexHandler {
                 this._indexApiEndpoint = null;
                 this._indexEndPoint = null;
                 this._deployedIndex = null;
+                this._indexId = null;
                 return Promise.reject(new Error("Couldn't find index enpoint"))
             }
             // "0.northamerica-northeast1-720328317830.vdb.vertexai.goog"
             this._indexApiEndpoint = endPoint.publicEndpointDomainName || "";
             // "projects/720328317830/locations/northamerica-northeast1/indexEndpoints/7034059667999293440"
             this._indexEndPoint = endPoint.name || "";
-            if (endPoint.deployedIndexes) {
+            if (endPoint.deployedIndexes && endPoint.deployedIndexes.length > 0) {
                 // "collector_search_indexv2_1702360075969"
                 this._deployedIndex = endPoint.deployedIndexes[0].id || "";
                 // "projects/720328317830/locations/northamerica-northeast1/indexes/54324670505156608"
@@ -213,8 +215,7 @@ export class IndexHandler {
             parent: this._parentPath()
         });
         for await (const response of iterable) {
-            // TODO: remove this v2
-            if (response.displayName === this.indexDisplayName + "v2") {
+            if (response.displayName === this.indexDisplayName) {
                 return response;
             }
         }
@@ -279,7 +280,6 @@ export class IndexHandler {
             parent: this._parentPath(),
             indexEndpoint: {
                 displayName: this.indexDisplayName
-                // network: `projects/${projectNumber}/global/networks/collector-search`
             }
         });
         return await operation.promise();
@@ -295,38 +295,40 @@ export class IndexHandler {
         })
     }
 
+    async deployIndex(): Promise<void> {
+        return Promise.all([this.createIndex(), this.createEndPoint()])
+            .then(([[index, _indexMeta, _indexOpt], [endPoint, _endPointMeta, _endPointOpt]]) => {
+                if (!index.name) {
+                    return Promise.reject("Couldn't find index name.")
+                }
+                return this._endPointClient.deployIndex({
+                    deployedIndex: {
+                        id: "collector_search_index",
+                        index: index.name,
+                        displayName: "Deployed collector search index",
+                        dedicatedResources: {
+                            machineSpec: {
+                                machineType: "e2-standard-2",
+                            },
+                            minReplicaCount: 1,
+                            maxReplicaCount: 1,
+                        }
+                    },
+                    indexEndpoint: endPoint.name
+                })
+            })
+            .then(async ([deployIndexResponse, metadata, _opt]) => {
+                // https://cloud.google.com/nodejs/docs/reference/aiplatform/3.3.0/aiplatform/v1.indexendpointserviceclient#_google_cloud_aiplatform_v1_IndexEndpointServiceClient_checkDeployIndexProgress_member_1_
+                const [response] = await deployIndexResponse.promise();
+            })
+    }
+
     startIndexCreation() {
         if (!this._isCreatingIndex) {
             this._isCreatingIndex = true;
             this.generateIndex()
                 .then((_) =>{
-                    return Promise.all([this.createIndex(), this.createEndPoint()])
-                })
-                .then(([[index, _indexMeta, _indexOpt], [endPoint, _endPointMeta, _endPointOpt]]) => {
-                    if (!index.name) {
-                        return Promise.reject("Couldn't find index name.")
-                    }
-                    return this._endPointClient.deployIndex({
-                        deployedIndex: {
-                            id: "collector_search_index",
-                            index: index.name,
-                            displayName: "Deployed collector search index",
-                            dedicatedResources: {
-                                machineSpec: {
-                                    machineType: "e2-standard-2"
-                                },
-                                minReplicaCount: 1,
-                                maxReplicaCount: 1
-                            }
-                        },
-                        indexEndpoint: endPoint.name
-                    })
-                })
-                .then(([_deployIndexResponse, metadata, _opt]) => {
-                    // todo handle error.
-                    if (metadata && metadata.error) {
-                        return Promise.reject(new Error(`Error deploying index: ${metadata.error}`))
-                    }
+                    return this.deployIndex();
                 })
                 .catch((err) => {
                     console.log(err);
@@ -399,5 +401,41 @@ export class IndexHandler {
                 }]
             });
         })
+    }
+
+    isUndeployingIndex(): boolean {
+        return this._isUndeployingIndex;
+    }
+
+    async isIndexDeployed(): Promise<boolean> {
+        try {
+            const [API_ENDPOINT, INDEX_ENDPOINT, DEPLOYED_INDEX_ID, INDEX] = await this.getEndPointInfo();
+            if (DEPLOYED_INDEX_ID) {
+                return true;
+            }
+        } catch (err) {
+            // probably raised because index is not deployed yet.
+        }
+        return false;
+    }
+
+    async undeployIndex(): Promise<void> {
+        const [API_ENDPOINT, INDEX_ENDPOINT, DEPLOYED_INDEX_ID, INDEX] = await this.getEndPointInfo();
+        if (!DEPLOYED_INDEX_ID) {
+            return Promise.reject("Index not deployed.");
+        }
+        this._isUndeployingIndex = true;
+        try {
+            const [operation] = await this._endPointClient.undeployIndex({
+                deployedIndexId: DEPLOYED_INDEX_ID,
+                indexEndpoint: INDEX_ENDPOINT
+            });
+            const [response] = await operation.promise();
+        } catch (err) {
+            return Promise.reject(err); 
+        } finally {
+            // reset value so we refetch.
+            this._deployedIndex = null;
+        }
     }
 }

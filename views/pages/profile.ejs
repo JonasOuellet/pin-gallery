@@ -1,0 +1,41 @@
+<%- include('../partials/head') %>
+    <div class="demo-card-wide mdl-card mdl-shadow--2dp" style="width: 60%; min-width: 800px; margin-top: 60px; margin: auto;">
+        <div class="mdl-card__title">
+            <h2 class="mdl-card__title-text">Parametre du profile</h2>
+        </div>
+        <div style="text-align: center; margin-top: 20px;">
+            <% if (indexDeployed) { %>
+                <button id="undeploy"
+                class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
+                > Annuler le deploiement de l'index
+            </button>
+            <% } else { %>
+                <button id="deploy"
+                    class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
+                > Deployer l'index
+                </button>
+            <% } %>
+            <div id="process" style="padding-top: 20px;">
+                <div id="processbar" style="margin: auto; visibility: hidden;" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
+            </div>
+        </div>
+        <form id="profileform" action="/profile/update" method="post">
+            <div style="display: block; margin: 20px;">
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="display: block;">
+                    <input class="mdl-textfield__input" type="text" name="name" id="sample3" value="<%- collectionName %>">
+                    <label class="mdl-textfield__label" for="sample3">Nom de la collection...</label>
+                </div>
+                <div class="mdl-textfield mdl-js-textfield" style="display: block;">
+                    <textarea class="mdl-textfield__input" type="text" rows="3" id="sample5" name="description"><%- collectionDesc %></textarea>
+                    <label class="mdl-textfield__label" for="sample5">Description...</label>
+                </div>
+            </div>
+            <div class="mdl-card__actions mdl-card--border" style="text-align: center;" id="accept_new_image">
+                <input type="submit" class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" value="Mettre a jour">
+            </div>
+        </form>
+    </div>
+
+<%- include('../partials/footer') %>
+<script src="/js/profile.js"></script>
+<%- include('../partials/js') %>

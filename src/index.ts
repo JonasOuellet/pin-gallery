@@ -193,7 +193,18 @@ app.use((req: any, res: express.Response, next) => {
     next();
 });
 
-app.get('/', (req: express.Request, res: express.Response) => {
+app.get('/', async (req: express.Request, res: express.Response) => {
+    let adminUser = await db.collection("Users")
+        .select("collectionName", "collectionDesc")
+        .where("username", "==", "Admin")
+        .limit(1)
+        .get();
+    if (adminUser.docs.length) {
+        let data = adminUser.docs[0].data();
+        res.locals.collectionName = data.collectionName || "Collection";
+        res.locals.collectionDesc = data.collectionDesc || "";
+    } 
+    
     res.render('pages/index');
 });
 
@@ -201,6 +212,43 @@ app.get('/', (req: express.Request, res: express.Response) => {
 app.get('/login', (req: express.Request, res: express.Response) => {
     res.render('pages/login');
 })
+
+app.get('/profile', async (req: express.Request, res: express.Response) => {
+    let user = req.user as User;
+    if (user === undefined) {
+        res.status(401).send("Unauthorized.")
+    }
+    try {
+        let data = (await db.doc(`Users/${user.id}`).get()).data() || {};
+        res.locals.collectionName = data.collectionName || "Collection";
+        res.locals.collectionDesc = data.collectionDesc || "";
+        
+    } catch (err) {
+        return res.redirect('/');
+    }
+    res.locals.indexDeployed = await indexHandler.isIndexDeployed();
+    res.render('pages/profile');
+})
+
+
+app.post('/profile/update', async (req: express.Request, res: express.Response) => {
+    let user = req.user as User;
+    if (user === undefined) {
+        res.status(401).send("Unauthorized.")
+    }
+
+    try {
+        await db.doc(`Users/${user.id}`)
+            .update({
+                collectionName: req.body.name,
+                collectionDesc: req.body.description
+            })
+    } catch (err) {
+        return res.status(400).send(err);
+    }
+    res.redirect('/profile');
+})
+
 
 app.get('/newitem', async (req: express.Request, res: express.Response) => {
     let user = req.user as User;
@@ -358,7 +406,7 @@ app.post('/item/similarimage', upload.single('image'), async (req: express.Reque
         });
 
     } catch (err) {
-        res.status(400).send("Error occured");
+        res.status(400).send("Error occured: " + err);
     }
     finally {
         unlink(file.path, () => {});
@@ -394,9 +442,18 @@ app.get('/items/read', async (req: express.Request, res: express.Response) => {
 });
 
 
+app.get('/undeployindex', async (req: express.Request, res: express.Response) => {
+    let user = req.user as User;
+    if (user === undefined) {
+        return res.status(400).send("Invalid user.");
+    }
+    indexHandler.undeployIndex()
+    res.status(200).send("Undeploying index.  Please wait...");
+}) 
+
+
 indexHandler
     .startVectorizer()
-    .then( (_) => {return indexHandler.generateIndex()})
     .then(() => {
         const port = parseInt(process.env.PORT || "0") || 8080;
         app.listen(port, () => {

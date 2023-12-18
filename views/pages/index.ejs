@@ -1,20 +1,12 @@
 <%- include('../partials/head') %>
 
-<h1>Collection</h1>
+<h1><%- collectionName %></h1>
 
-<p>Description</p>
-
-<% if (loggedIn) { %>
-    <button
-        class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored"
-        onclick="window.location.href='/newitem'"
-    >
-        Ajouter un Item
-    </button>
+<% if (collectionDesc) { %>
+    <p><%- collectionDesc %></p>
 <% } %>
 
 <div id="images"></div>
-
 
 <%- include('../partials/footer') %>
 <script src="/js/index.js"></script>

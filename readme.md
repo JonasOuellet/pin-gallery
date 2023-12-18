@@ -15,6 +15,8 @@ psql -U prostgres collectionneurs
 * [Milvus](https://milvus.io/docs/image_similarity_search.md)
 * [Vertex AI Index](https://cloud.google.com/vertex-ai/docs/vector-search/create-manage-index)
 
+Cout de vertex AI: [cost](https://cloud.google.com/vertex-ai/pricing?hl=fr#matchingengine)
+
 ## TODOs:
 
 * Ameliorer la selection de la region lors de l'ajout d'une nouvelle photo
