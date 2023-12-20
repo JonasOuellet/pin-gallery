@@ -1,13 +1,54 @@
 <%- include('../partials/head') %>
 
-<h1><%- collectionName %></h1>
+<h1>Application du collectionneur</h1>
+<p>Trouver les doublons dans votre collections. Ajouter une image a partir de la source desire et faite une rechercher pour trouver les items similaires.</p>
 
-<% if (collectionDesc) { %>
-    <p><%- collectionDesc %></p>
-<% } %>
+<h3>Item ajoute recemment</h3>
 
-<div id="images"></div>
+<div id="recentlyadded" style="padding-bottom: 40px;"></div>
 
-<%- include('../partials/footer') %>
+
+<div class="demo-card-wide mdl-card mdl-shadow--2dp" style="width: 60%; min-width: 800px; margin-top: 60px; margin: auto;">
+    <div class="mdl-card__title">
+        <h2 class="mdl-card__title-text">Ajout d'un nouvel item</h2>
+    </div>
+    <div id="camera-panel" style="margin-bottom: 40px;">
+        <video id="video" style="max-width: 60%; display: block; margin-left: auto; margin-right: auto; margin-top: 20px;">Video stream not available.</video>
+        <div style="text-align: center; margin-top: 20px;">
+            <button 
+                class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
+                id="captureBtn"
+            >Capture
+            </button>
+        </div>
+    </div>
+    
+
+    <canvas id="canvas" style="max-width: 100%; margin: 20px; aspect-ratio: 16/9;"></canvas>
+    <!-- Slider with Starting Value -->
+    <div style="margin-left: 20px; margin-right: 20px;">
+        <label for="imgRotation">Orientation de l'image</label>
+        <input id="imgRotation" name="imgRotation" class="mdl-slider mdl-js-slider" type="range" min="-200" max="200" value="0">
+    </div>
+    
+    <div style="text-align: center; margin-top: 20px;">
+        <% if (indexExists)  { %>
+            <button id="index_search"
+                class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
+            > Rechercher des items similaires
+            </button>
+            <div id="imageSearchResult" style="padding-top: 20px;">
+                <div id="imageSearchBar" style="margin: auto; visibility: hidden;" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
+            </div>
+        <% } else { %>
+            <p>Ajouter plus d'item pour creer l'index et pouvoir chercher les items similaires. (<%= itemCount %>/<%= itemCountNeeded %>) </p>
+        <% } %>
+    </div>
+
+    <div class="mdl-card__actions mdl-card--border" style="text-align: center;">
+        <input class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" id="addNewItem" type="button" value="Ajouter">
+    </div>
+</div>
+
 <script src="/js/index.js"></script>
-<%- include('../partials/js') %>
+<%- include('../partials/footer') %>

@@ -1,12 +1,26 @@
 <%- include('../partials/head') %>
 
-<form id="login" action="/login" method="post">
-    <label for="uname"><b>Username</b></label>
-    <input type="text" placeholder="Enter Username" name="username" required>
-    <label for="psw"><b>Password</b></label>
-    <input type="password" placeholder="Enter Password" name="password" required>
-    <input type="submit" class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" type="button" value="Connection">
-</form>
+<div class="demo-card-wide mdl-card mdl-shadow--2dp" style="width: 600px; margin: auto; margin-top: 100px;">
+    <div class="mdl-card__title">
+        <h2 class="mdl-card__title-text">Se Connecter</h2>
+    </div>
+
+    <form id="login" action="/login" method="post">
+        <div style="margin-left: 40px;">
+            <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="display: block;">
+                <input class="mdl-textfield__input" type="text" id="uname" name="username">
+                <label class="mdl-textfield__label" for="uname">Nom d'utilisateur</label>
+            </div>
+            <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="display: block;">
+                <input class="mdl-textfield__input" type="password" name="password">
+                <label class="mdl-textfield__label" for="psw">Mot de passe</label>
+            </div>
+        </div>
+        <div class="mdl-card__actions mdl-card--border" style="text-align: center;">
+            <input class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" type="submit" class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" type="button" value="Connection">
+        </div> 
+    </form>
+</div>
 
 <%- include('../partials/footer') %>
 <%- include('../partials/js') %>

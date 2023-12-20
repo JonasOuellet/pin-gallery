@@ -8,52 +8,17 @@
 	<!-- Roboto Font-->
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700" type="text/css">
 
-	<!-- Fancybox Gallery CSS -->
-	<!-- <link rel="stylesheet" type="text/css" href="/fancybox/jquery.fancybox.min.css"> -->
+	<!-- jquery -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 
 	<!-- Material design icon-->
-	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-
-	<link rel="stylesheet" href="/mdlite/material.indigo-pink.min.css">
+	<!-- <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> -->
+	<link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+	<script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
 
 	
-	<title>Collectionneurs</title>
+	<title>Collection App</title>
 </head>
 
 <body>
-    <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
-        <header class="mdl-layout__header mdl-layout__header--scroll">
-            <div class="mdl-layout__header-row mdl-layout--large-screen-only">
-                <nav class="mdl-navigation">
-					<a class="mdl-navigation__link" href="/">Collection</a>
-					<% if (loggedIn) { %>
-						<a class="mdl-navigation__link" href="/newitem">Ajouter un item</a>
-					<% } %>
-				</nav>
-				<div class="mdl-layout-spacer"></div>
-				<% if (loggedIn) { %>
-					<nav class="mdl-navigation">
-						<a class="mdl-navigation__link" href="/profile">Profile</a>
-						<a class="mdl-navigation__link" href="/logout">Deconnection</a>
-					</nav>
-				<% } else { %>
-					<nav class="mdl-navigation">
-						<a class="mdl-navigation__link" href="/login">Se Connecter</a>
-					</nav>
-				<% } %>
-            </div>
-        </header>
-		<div class="mdl-layout__drawer mdl-layout--small-screen-only">
-			<nav class="mdl-navigation">
-				<a class="mdl-navigation__link" href="">Collection</a>
-				<% if (loggedIn) { %>
-					<a class="mdl-navigation__link" href="/newitem">Ajouter un item</a>
-					<a class="mdl-navigation__link" href="/">Profile</a>
-					<a class="mdl-navigation__link" href="/logout">Deconnection</a>
-				<% } else { %>
-					<a class="mdl-navigation__link" href="/login">Se Connecter</a>
-				<% } %>
-		  </div>
-
-        <main class="mdl-layout__content">
-			<div style="margin: 10px 40px; margin-top: 40px;">
+    <main style="padding: 60px;">

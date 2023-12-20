@@ -87,6 +87,10 @@ export class IndexHandler {
         });
     }
 
+    async startVectorizerProxy(): Promise<void> {
+        return new Promise((resolve, reject) => {resolve()});
+    }
+
     async startVectorizer(): Promise<void> {
         // spawn process
         // if exit code is not null this means that the process is down.

@@ -1,11 +1,9 @@
 import bodyParser from 'body-parser';
 import express from "express";
-import expressWinston from 'express-winston';
 import * as multer from 'multer';
 import passport from 'passport';
 import { Strategy } from 'passport-local';
 import session from 'express-session';
-import winston from 'winston';
 import * as crypto from "crypto";
 
 import { Storage } from "@google-cloud/storage";
@@ -114,49 +112,8 @@ passport.deserializeUser((user, done) => {
     });
 });
 
-// Console transport for winton.
-const consoleTransport = new winston.transports.Console();
+// app.use(express.static('static'));
 
-// Set up winston logging.
-const logger = winston.createLogger({
-    format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-    ),
-    transports: [
-        consoleTransport
-    ]
-});
-
-// Enable extensive logging if the DEBUG environment variable is set.
-if (process.env.DEBUG) {
-    // Print all winston log levels.
-    logger.level = 'silly';
-
-    // Enable express.js debugging. This logs all received requests.
-    app.use(expressWinston.logger({
-        transports: [
-            consoleTransport
-        ],
-        winstonInstance: logger
-    }));
-
-} else {
-    // By default, only print all 'verbose' log level messages or below.
-    logger.level = 'verbose';
-}
-
-
-// Set up static routes for hosted libraries.
-// https://github.com/swc-project/swc/issues/1202
-// const hereUrl = pathToFileURL(__dirname).toString();
-// console.log(hereUrl);
-// console.log(fileURLToPath(new URL('node_modules/jquery/dist/', hereUrl)));
-
-app.use(express.static('static'));
-app.use('/js', express.static("./node_modules/jquery/dist/"));
-app.use('/fancybox', express.static('./node_modules/@fancyapps/fancybox/dist/'));
-app.use('/mdlite', express.static('./node_modules/material-design-lite/dist/'));
 
 const multerStorage = multer.diskStorage({
     destination: (req: express.Request, file: Express.Multer.File, cb) => {
@@ -194,70 +151,13 @@ app.use((req: any, res: express.Response, next) => {
 });
 
 app.get('/', async (req: express.Request, res: express.Response) => {
-    let adminUser = await db.collection("Users")
-        .select("collectionName", "collectionDesc")
-        .where("username", "==", "Admin")
-        .limit(1)
-        .get();
-    if (adminUser.docs.length) {
-        let data = adminUser.docs[0].data();
-        res.locals.collectionName = data.collectionName || "Collection";
-        res.locals.collectionDesc = data.collectionDesc || "";
-    } 
-    
-    res.render('pages/index');
-});
-
-
-app.get('/login', (req: express.Request, res: express.Response) => {
-    res.render('pages/login');
-})
-
-app.get('/profile', async (req: express.Request, res: express.Response) => {
     let user = req.user as User;
     if (user === undefined) {
-        res.status(401).send("Unauthorized.")
-    }
-    try {
-        let data = (await db.doc(`Users/${user.id}`).get()).data() || {};
-        res.locals.collectionName = data.collectionName || "Collection";
-        res.locals.collectionDesc = data.collectionDesc || "";
-        
-    } catch (err) {
-        return res.redirect('/');
-    }
-    res.locals.indexDeployed = await indexHandler.isIndexDeployed();
-    res.render('pages/profile');
-})
-
-
-app.post('/profile/update', async (req: express.Request, res: express.Response) => {
-    let user = req.user as User;
-    if (user === undefined) {
-        res.status(401).send("Unauthorized.")
-    }
-
-    try {
-        await db.doc(`Users/${user.id}`)
-            .update({
-                collectionName: req.body.name,
-                collectionDesc: req.body.description
-            })
-    } catch (err) {
-        return res.status(400).send(err);
-    }
-    res.redirect('/profile');
-})
-
-
-app.get('/newitem', async (req: express.Request, res: express.Response) => {
-    let user = req.user as User;
-    if (user === undefined) {
-        res.redirect('/');
+        return res.render("pages/login");
     }
 
     if (indexHandler._isCreatingIndex) {
-        res.render('pages/newiteminvalid');
+        return res.render('pages/newiteminvalid');
     } else {
         let indexExists = await indexHandler.indexExists();
         res.locals.indexExists = indexExists;
@@ -272,9 +172,9 @@ app.get('/newitem', async (req: express.Request, res: express.Response) => {
             res.locals.itemCountNeeded = ITEM_TO_BUILD_INDEX;         
         }
 
-        res.render('pages/newitem');
+        return res.render('pages/index');
     }
-})
+});
 
 
 app.post(
@@ -290,16 +190,6 @@ app.post(
     }
 );
 
-
-// GET request to log out the user.
-// Destroy the current session and redirect back to the log in screen.
-app.get('/logout', (req: any, res: express.Response, next) => {
-    req.logout((err: any) => {
-        if (err) { return next(err); }
-        req.session.destroy();
-        res.redirect('/');
-    });
-});
 
 app.post('/item/create', upload.single('image'), async (req: express.Request, res: express.Response) => {
     let user = req.user as User;
@@ -427,8 +317,7 @@ app.get('/items/read', async (req: express.Request, res: express.Response) => {
         let result = await db.doc(`Users/${user.id}`).collection("items")
             .select("url")
             .orderBy("timestamp", "desc")
-            // we can't go further than 50 given google docs
-            .limit(50)
+            .limit(20)
             .get();
         let urls: string[] = [];
         for (let user of result.docs) {
@@ -453,7 +342,7 @@ app.get('/undeployindex', async (req: express.Request, res: express.Response) =>
 
 
 indexHandler
-    .startVectorizer()
+    .startVectorizerProxy()
     .then(() => {
         const port = parseInt(process.env.PORT || "0") || 8080;
         app.listen(port, () => {
