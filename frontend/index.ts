@@ -50,14 +50,6 @@ class Rect {
 }
 
 
-enum MouseMoveEvent {
-    None,
-    Move,
-    Rect,
-    Rotate
-}
- 
-
 class PhotoCapture {
     width: number;
     height: number;
@@ -71,24 +63,17 @@ class PhotoCapture {
     canvas: HTMLCanvasElement;
     canvasContext: CanvasRenderingContext2D;
     image: ImageBitmap | null;
+    imageScale: number = 1;
 
-    mouseEvent: MouseMoveEvent = MouseMoveEvent.None;
+    _isMoving: boolean = false;
     _initalPos: Point2D = Point2D.origin();
     imagePosition: Point2D = Point2D.origin();
     _initialImagePosition: Point2D = Point2D.origin();
 
-    _selRectInitial: Point2D | null;
-    _selRectNew: Point2D | null;
-
-    rotation: number = 0;
-
     constructor() {
         this.streaming = false;
-        this.width = 1280;
-        this.height = 720;
-
-        this._selRectInitial = null;
-        this._selRectNew = null;
+        this.width = 256;
+        this.height = 256;
 
         this.video = getElemById<HTMLVideoElement>("video");
         this.canvas = getElemById<HTMLCanvasElement>("canvas");
@@ -105,123 +90,62 @@ class PhotoCapture {
         this.image = null;
     }
 
-    getRect(): [number, number, number, number] | null {
-        if (this._selRectInitial === null || this._selRectNew === null) {
-            return null;
-        }
-        let [minX, maxX] = [this._selRectInitial.x, this._selRectNew.x].sort();
-        let [minY, maxY] = [this._selRectInitial.y, this._selRectNew.y].sort();
-
-        return [
-            minX,
-            minY,
-            maxX - minX,
-            maxY - minY
-        ]
-    }
-
     drawImageAnimation() {
         this.clearPhoto();
         if (this.image !== null) {
-            this.canvasContext.translate(this.imagePosition.x, this.imagePosition.y);
-            this.canvasContext.rotate((this.rotation / 100) * (Math.PI / 2));
-
             this.canvasContext.drawImage(
                 this.image,
-                -this.image.width/2,
-                -this.image.height/2
+                0,
+                0,
+                this.image.width,
+                this.image.height,
+                this.imagePosition.x,
+                this.imagePosition.y,
+                this.image.width * this.imageScale,
+                this.image.height * this.imageScale
             );
 
-            this.canvasContext.resetTransform();
         }
 
-        // Create clipping path
-        this.canvasContext.save();
-        let region = new Path2D();
-        region.rect(0, 0, this.width, this.height);
-        const rect = this.getRect();
-        if (rect){
-            region.rect(...rect);
-            this.canvasContext.clip(region, "evenodd");
-        }
-
-        // Draw stuff that gets clipped
-        this.canvasContext.fillStyle = "rgba(0, 0, 0, 0.8)";
-        this.canvasContext.fillRect(0, 0, this.width, this.height);
-        this.canvasContext.restore();
-        // stop updating.
-        if (this.mouseEvent !== MouseMoveEvent.None) {
+        if (this._isMoving) {
             requestAnimationFrame((time) => this.drawImageAnimation());
         } 
     }
 
     beginMoving(event: MouseEvent) {
-        // 0 left click
-        // 1 middle mouse
-        // 2 right click
-        if (this.mouseEvent === MouseMoveEvent.None && event.button === 0 && this.image){
+        if (event.button === 0 && this.image){
             // tell the browser we're handling this mouse event
             // https://stackoverflow.com/questions/28284754/dragging-shapes-using-mouse-after-creating-them-with-html5-canvas
 
             // set move cursor
             document.body.style.cursor = "move";
  
-            this.mouseEvent = MouseMoveEvent.Move;
             this._initalPos = new Point2D(event.x, event.y);
             this._initialImagePosition = new Point2D(this.imagePosition.x, this.imagePosition.y);
             
             event.preventDefault();
             event.stopPropagation();
             // start drawing the image
-            this.drawImageAnimation()
-
-        } else if (!this.mouseEvent && event.button === 2) {
-            this._initalPos = new Point2D(event.x, event.y);
-            this.mouseEvent = MouseMoveEvent.Rect;
-            let ratioX = this.canvas.width / this.canvas.clientWidth;
-            let ratioY = this.canvas.height / this.canvas.clientHeight;
-            this._selRectInitial = new Point2D(event.offsetX * ratioX, event.offsetY * ratioY);
-            this._selRectNew = new Point2D(event.offsetX * ratioX, event.offsetY * ratioY);
-
-            document.body.style.cursor = "se-resize";
-
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation();
-            // start drawing the image
+            this._isMoving = true;
             this.drawImageAnimation()
         }
      }
   
      endMoving(event: MouseEvent) {
-        if (
-            (this.mouseEvent == MouseMoveEvent.Move && event.button === 0) ||
-            (this.mouseEvent == MouseMoveEvent.Rect && event.button === 2)
-        ) {
-            this.mouseEvent = MouseMoveEvent.None;
-            
+        if (this._isMoving) {
             document.body.style.cursor = "auto";
-
             event.preventDefault();
             event.stopPropagation();
+            this._isMoving = false;
         }
      }
   
     move(event: MouseEvent) {
-        if (this.mouseEvent === MouseMoveEvent.Move && this.image) {
+        if (this._isMoving) {
             let relPos = new Point2D(event.x, event.y).sub(this._initalPos);
             relPos.x *= this.canvas.width / this.canvas.clientWidth;
             relPos.y *= this.canvas.height / this.canvas.clientHeight;
             this.imagePosition = this._initialImagePosition.add(relPos);
-            
-            event.preventDefault();
-            event.stopPropagation();
-        } else if (this.mouseEvent === MouseMoveEvent.Rect) {
-            let relPos = new Point2D(event.x, event.y).sub(this._initalPos);
-            relPos.x *= this.canvas.width / this.canvas.clientWidth;
-            relPos.y *= this.canvas.height / this.canvas.clientHeight;
-            this._selRectNew = (this._selRectInitial as Point2D).add(relPos);
-
             event.preventDefault();
             event.stopPropagation();
         }
@@ -260,30 +184,31 @@ class PhotoCapture {
     
         // setup other event
         this.canvas.addEventListener("mousedown", (event) => this.beginMoving(event));
-        this.canvas.addEventListener("contextmenu", (event) => {event.preventDefault()});
-      
         window.addEventListener("mouseup", (event) => this.endMoving(event));
-               
         window.addEventListener("mousemove", (event) => this.move(event));
-
-        getElemById<HTMLInputElement>("imgRotation").addEventListener("input", (event) => {
-            if (this.mouseEvent === MouseMoveEvent.None) {
-                this.mouseEvent = MouseMoveEvent.Rotate;
-                // begin draw
+        this.canvas.addEventListener("wheel", (event) => {
+            if (this.image) {
+                // scale from center
+                let currentWidth = this.image.width * this.imageScale;
+                let currentHeight = this.image.height * this.imageScale;
+                this.imageScale += event.deltaY * 0.0005;
+                this.imagePosition = this.imagePosition.add(new Point2D(
+                    (currentWidth - (this.image.width * this.imageScale)) * 0.5,
+                    (currentHeight - (this.image.height * this.imageScale)) * 0.5
+                ));
                 this.drawImageAnimation();
+                event.stopPropagation();
+                event.preventDefault();
             }
-            this.rotation = (event.target as any).value
         })
-        getElemById<HTMLInputElement>("imgRotation").addEventListener("change", (event) => {
-            this.mouseEvent = MouseMoveEvent.None;
-        });
     }
 
     imgReceived(image: ImageBitmap) {
         this.image = image;
-        this.imagePosition = new Point2D(image.width/2, image.height/2);
-        this._selRectInitial = Point2D.origin();
-        this._selRectNew =  new Point2D(image.width, image.height);
+        // calculate the scale
+        this.imageScale = this.height / this.image.height;
+        let scaledWith = this.image.width * this.imageScale;
+        this.imagePosition = new Point2D((this.width / 2) - (scaledWith / 2), 0);
         this.drawImageAnimation();
     };
 
@@ -354,40 +279,13 @@ class PhotoCapture {
 
     async getImageFile(): Promise<File> {
         // https://stackoverflow.com/questions/23511792/attach-a-blob-to-an-input-of-type-file-in-a-form
-        const rect = this.getRect();
-        if (rect === null) {
-            return Promise.reject("Ajouter une image et selectionner la portion a utiliser.")
-        }
-        let data = this.canvasContext.getImageData(...rect);
-        let img = await createImageBitmap(data);
-        // https://stackoverflow.com/questions/52959839/convert-imagebitmap-to-blob
-        // i need to draw it to a new canvas
-        let tmpCanvas =  document.createElement("canvas");
-        tmpCanvas.width = data.width;
-        tmpCanvas.height = data.height;
-        const ctx = tmpCanvas.getContext("bitmaprenderer");
-        if (ctx === null) {
-            tmpCanvas.remove();
-            return Promise.reject(new Error("Cannot get bitmap context."))
-        };
-        ctx.transferFromImageBitmap(img);
-        let result = await new Promise<Blob | null>((b) => tmpCanvas.toBlob(b, "image/png"));
+        let result = await new Promise<Blob | null>((b) => this.canvas.toBlob(b, "image/png"));
         if (result === null) {
-            tmpCanvas.remove();
             return Promise.reject(new Error("Cannot getting the image data."))
         }
         let filename = "newImage";
         let file = new File([result], filename + ".png", {type: "image/png", lastModified: new Date().getTime()});
-        tmpCanvas.remove();
-        return file
-    }
-
-    async setImageInput() {
-        let file = await this.getImageFile();
-        let container = new DataTransfer();
-        container.items.add(file);
-        let elem = getElemById<HTMLInputElement>("image_input");
-        elem.files = container.files;
+        return file;
     }
 
     // Fill the photo with an indication that none has been
@@ -416,6 +314,140 @@ function showViewLiveResultButton(): boolean {
     return false;
 }
 
+let fetchIntervalNumber: number | null = null;
+
+function fetchIndexWithInterval() {
+    if (fetchIntervalNumber !== null) {
+        return
+    };
+
+    fetchIntervalNumber = setInterval(() => {
+        console.log("fetching index status..")
+        fetchIndexStatus()
+    },
+    // check at each minute
+    1000  * 60
+    ) as any;
+}
+
+function undeployInProgess() {
+    $("#indexstatus").text("Annulation du deploiement de l'index en court.  Veuillez patienter...");
+    $("#indexstatusbar").show();
+}
+
+function deployInProgress() {
+    $("#indexstatus").text("Deploiement de l'index en court.  Veuillez patienter...");
+    $("#indexstatusbar").show();
+}
+
+
+function indexValid() {
+    $("#indexstatus").text("L'index est deploye est pret a etre utilise.  Vous pouvez annuler le deploiment lorsque vous n'avez plus besoin de l'index pour economiser des frais d'execution.");
+    let btn = $("#indexactionundeploy");
+    btn.show();
+    (btn.get(0) as HTMLElement).onclick = () => {
+        $.ajax({
+            type: "GET",
+            url: "/undeployindex",
+            success: (data) => {
+                btn.hide();
+                undeployInProgess();
+                fetchIndexWithInterval();
+            },
+            error: (err) => {
+                btn.hide();
+                $("#indexstatus").text(`Une erreur est survenue: ${err.responseText}`);
+                btn.css("visibility", "hidden");
+            }
+        })
+    }
+}
+
+
+function indexNotDeployed(){
+    $("#indexstatus").text("L'index n'est pas deploye.");
+    let btn = $("#indexactiondeploy");
+    btn.show();
+    (btn.get(0) as HTMLElement).onclick = () => {
+        $.ajax({
+            type: "GET",
+            url: "/deployindex",
+            success: (data) => {
+                btn.hide();
+                deployInProgress();
+                fetchIndexWithInterval();
+            },
+            error: (err) => {
+                btn.hide();
+                $("#indexstatus").text(`Une erreur est survenue: ${err.responseText}.`);
+                btn.css("visibility", "hidden");
+            }
+        })
+    }
+}
+
+
+function updateState(data: {status: string}) {
+    // handle operation first
+    if (data.status === "IndexIsBeingDeployed") {
+        deployInProgress();
+        // fetch status if not already fetching
+        fetchIndexWithInterval();
+        return;
+    }
+
+    if (data.status === "IndexIsBeingUndeployed") {
+        console.log("index is being undeployed")
+        undeployInProgess();
+        // fetch status if not already fetching
+        fetchIndexWithInterval();
+        return;
+    }
+
+    // no operation is running so stop the fetch
+    if (fetchIntervalNumber !== null) {
+        clearInterval(fetchIntervalNumber);
+        fetchIntervalNumber = null;
+    }
+
+    if (data.status === "IndexNotDeployed") {
+        indexNotDeployed();
+    }
+    else if (data.status === "IndexDoesntExist") {
+        if ((data as any).remaining > 0) { 
+            $("#indexstatus").text("L'index est pret a etre cree");
+            // TODO: add button to create index.
+        }
+        else {
+            $("#indexstatus").text(`Ajouter encore ${(data as any).remaining} items pour pouvoir creer l'index.`);
+        }
+    }
+    else if (data.status === "IndexValid") {
+        indexValid();
+    }
+    $("#indexstatusbar").hide();
+}
+
+
+function fetchIndexStatus() {
+    $.ajax({
+        type: "GET",
+        url: "/indexstatus",
+        dataType: "json",
+        success: (data) => {
+            updateState(data);
+        },
+        error: (data) => {
+            $("#indexstatus").text("Une erreur est survenue: " + data);
+            $("#indexstatusbar").hide();
+            if (fetchIntervalNumber !== null) {
+                clearInterval(fetchIntervalNumber);
+                fetchIntervalNumber = null;
+            }
+        }
+    })
+}
+
 
 $(() => {
     $("#recentlyadded").each((idx, elem) => {
@@ -437,6 +469,8 @@ $(() => {
         })
     })
 
+    fetchIndexStatus();
+
     if (!showViewLiveResultButton()) {
         let capture = new PhotoCapture;
         capture.clearPhoto();
@@ -444,6 +478,7 @@ $(() => {
 
 
         $("#addNewItem").on("click", (event) => {
+            // TODO: Implement post request
             capture.setImageInput().then(() => {
                 // handle the tag
             }).catch((err) => {

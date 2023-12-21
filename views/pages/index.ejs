@@ -7,6 +7,15 @@
 
 <div id="recentlyadded" style="padding-bottom: 40px;"></div>
 
+<h3>Status de l'index</h3>
+<div style="padding-bottom: 40px;">
+    <p id="indexstatus">Recherche du status de l'index...</p>
+    <div id="indexstatusbar" style="margin: auto;" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
+    <div id="indexbuttondiv" style="text-align: center;">
+        <button id="indexactiondeploy" style="display: none;" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored">Deployer l'index</button>
+        <button id="indexactionundeploy" style="display: none;" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored">Annuler le deploiement de l'index</button>
+    </div>
+</div>
 
 <div class="demo-card-wide mdl-card mdl-shadow--2dp" style="width: 60%; min-width: 800px; margin-top: 60px; margin: auto;">
     <div class="mdl-card__title">
@@ -24,25 +33,16 @@
     </div>
     
 
-    <canvas id="canvas" style="max-width: 100%; margin: 20px; aspect-ratio: 16/9;"></canvas>
-    <!-- Slider with Starting Value -->
-    <div style="margin-left: 20px; margin-right: 20px;">
-        <label for="imgRotation">Orientation de l'image</label>
-        <input id="imgRotation" name="imgRotation" class="mdl-slider mdl-js-slider" type="range" min="-200" max="200" value="0">
-    </div>
+    <canvas id="canvas" style="max-width: 256px; margin: auto; aspect-ratio: 1/1;"></canvas>
     
     <div style="text-align: center; margin-top: 20px;">
-        <% if (indexExists)  { %>
-            <button id="index_search"
-                class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
-            > Rechercher des items similaires
-            </button>
-            <div id="imageSearchResult" style="padding-top: 20px;">
-                <div id="imageSearchBar" style="margin: auto; visibility: hidden;" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
-            </div>
-        <% } else { %>
-            <p>Ajouter plus d'item pour creer l'index et pouvoir chercher les items similaires. (<%= itemCount %>/<%= itemCountNeeded %>) </p>
-        <% } %>
+        <button id="index_search"
+            class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
+        > Rechercher des items similaires
+        </button>
+        <div id="imageSearchResult" style="padding-top: 20px; padding-bottom: 20px;">
+            <div id="imageSearchBar" style="margin: auto; visibility: hidden;" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
+        </div>
     </div>
 
     <div class="mdl-card__actions mdl-card--border" style="text-align: center;">

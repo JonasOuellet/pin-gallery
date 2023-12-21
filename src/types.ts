@@ -1,11 +1,21 @@
-// import type {Timestamp} from "@google-cloud/firestore";
+import type {Timestamp} from "@google-cloud/firestore";
+
+export enum IndexStatus{
+    IndexValid,
+    IndexDoesntExist,
+    IndexNotDeployed,
+    IndexIsBeingDeployed,
+    IndexIsBeingUndeployed,
+}
 
 
-interface User {
+export interface User {
     username: string,
     password: Buffer,
     salt: Buffer,
-    id: string
+    id: string,
+    deployOperation: string | null,
+    undeployOperation: string | null
 }
 
 
@@ -184,7 +194,7 @@ interface DBCollectionCreate {
 }
 
 
-interface DBItem {
+export interface DBItem {
     name: string,
     description: string,
     timestamp: FirebaseFirestore.Timestamp

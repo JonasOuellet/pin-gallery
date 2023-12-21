@@ -12,7 +12,9 @@ import { FirestoreStore } from '@google-cloud/connect-firestore';
 
 import { unlink } from 'fs';
 
-import { IndexHandler } from './ai_index';
+import { IndexHandler, AiInfoErrType } from './ai_index';
+
+import { DBItem, User, IndexStatus } from './types';
 
 export const app: express.Express = express();
 
@@ -112,8 +114,6 @@ passport.deserializeUser((user, done) => {
     });
 });
 
-// app.use(express.static('static'));
-
 
 const multerStorage = multer.diskStorage({
     destination: (req: express.Request, file: Express.Multer.File, cb) => {
@@ -143,36 +143,88 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Set up passport and session handling.
 app.use(passport.authenticate('session'));
 
-// Middleware that adds the user of this session as a local variable,
-// so it can be displayed on all pages when logged in.
-app.use((req: any, res: express.Response, next) => {
-    res.locals.loggedIn = req.user && req.isAuthenticated();
-    next();
-});
 
 app.get('/', async (req: express.Request, res: express.Response) => {
-    let user = req.user as User;
-    if (user === undefined) {
-        return res.render("pages/login");
+    if (req.user && req.isAuthenticated()) {
+        return res.render('pages/index');
     }
+    return res.render("pages/login");
+});
 
-    if (indexHandler._isCreatingIndex) {
-        return res.render('pages/newiteminvalid');
-    } else {
-        let indexExists = await indexHandler.indexExists();
-        res.locals.indexExists = indexExists;
-        if (!indexExists) {
-            // check how many image we have yet
-            let count = (await db.doc(`Users/${user.id}`)
-                .collection("items")
-                .count()
-                .get()
-            ).data().count;
-            res.locals.itemCount = count;
-            res.locals.itemCountNeeded = ITEM_TO_BUILD_INDEX;         
+
+app.get('/indexstatus', async (req: express.Request, res: express.Response) => {
+    let user = req.user as User;
+    if (!req.user || req.isUnauthenticated()) {
+        return res.status(401).send("Unautorized.")
+    }
+    try {
+        let userDoc = db.doc(`Users/${user.id}`);
+        let userData = (await userDoc.get()).data() as User | undefined;
+        // first check if there are operations
+        if (userData) {
+            if (userData.deployOperation) {
+                // query google to see if the operation is completed. or in progress
+                if (await indexHandler.checkDeployOperation(userData.deployOperation)) {
+                    // remove the operation from the the user
+                    await userDoc.update({
+                        deployOperation: null
+                    });
+                } else {
+                    return res.send({
+                        status:  IndexStatus[IndexStatus.IndexIsBeingDeployed]
+                    })
+                }
+            }
+            if (userData.undeployOperation) {
+                // query google to see if the operation is completed. or in progress
+                if (await indexHandler.checkUndeployOperation(userData.undeployOperation)) {
+                    // remove the operation from the the user
+                    await userDoc.update({
+                        undeployOperation: null
+                    });
+                } else {
+                    return res.send({
+                        status:  IndexStatus[IndexStatus.IndexIsBeingUndeployed]
+                    })
+                }
+            }
         }
 
-        return res.render('pages/index');
+        const [info, err] = await indexHandler.getAiInfo();
+
+        if (err !== null) {
+            if (err === AiInfoErrType.IndexDoesntExist) {
+                // check how many image we have yet
+                let count = (await db.doc(`Users/${user.id}`)
+                    .collection("items")
+                    .count()
+                    .get()
+                ).data().count;
+                
+                return res.send({
+                    currentItemCount: count,
+                    itemNeeded: ITEM_TO_BUILD_INDEX,
+                    remaining: Math.max(0, count - ITEM_TO_BUILD_INDEX),
+                    status: IndexStatus.IndexDoesntExist
+                });
+            }
+            if (err === AiInfoErrType.EndPointDoesntExist) {
+                
+            } 
+            else if (err === AiInfoErrType.IndexNotDeployed) {
+                // check if there is a task to deploy the index and check if it is finished
+                return res.status(200).send({
+                    status: IndexStatus[IndexStatus.IndexNotDeployed]
+                })
+            }
+        }
+
+        return res.send({
+            status: IndexStatus[IndexStatus.IndexValid]
+        })
+
+    } catch (err) {
+        return res.status(400).send({error: err})
     }
 });
 
@@ -193,7 +245,7 @@ app.post(
 
 app.post('/item/create', upload.single('image'), async (req: express.Request, res: express.Response) => {
     let user = req.user as User;
-    if (user === undefined) {
+    if (user === undefined || req.isUnauthenticated()) {
         res.redirect('/');
     }
 
@@ -270,7 +322,7 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
 
 app.post('/item/similarimage', upload.single('image'), async (req: express.Request, res: express.Response) => {
     let user = req.user as User;
-    if (user === undefined) {
+    if (!user || req.isUnauthenticated()) {
         return res.status(400).send("Invalid user.");
     }
     
@@ -333,12 +385,38 @@ app.get('/items/read', async (req: express.Request, res: express.Response) => {
 
 app.get('/undeployindex', async (req: express.Request, res: express.Response) => {
     let user = req.user as User;
-    if (user === undefined) {
-        return res.status(400).send("Invalid user.");
+    if (user === undefined || req.isUnauthenticated()) {
+        return res.status(401).send("Unautorised");
     }
-    indexHandler.undeployIndex()
-    res.status(200).send("Undeploying index.  Please wait...");
-}) 
+    let result = await indexHandler.undeployIndex();
+    if (result !== null) {
+        // this is the name of the operation
+        let doc = db.doc(`Users/${user.id}`);
+        await doc.update( {
+            undeployOperation: result
+        });
+        return res.send();
+    }
+    return res.status(400).send("L'index est deja annule ou est en cours de deploiement.  Veuillez reessayer plus tard.");
+})
+
+app.get('/deployindex', async (req: express.Request, res: express.Response) => {
+    let user = req.user as User;
+    if (user === undefined || req.isUnauthenticated()) {
+        return res.status(401).send("Unautorised");
+    }
+    let result = await indexHandler.deployIndex();
+    if (result !== null) {
+        // this is the name of the operation
+        let doc = db.doc(`Users/${user.id}`);
+        await doc.update( {
+            deployOperation: result
+        });
+        return res.send();
+    }
+
+    return res.status(400).send("L'index est deja deploye ou est en cours d'annulation.  Veuillez reessayer plus tard.");
+})
 
 
 indexHandler

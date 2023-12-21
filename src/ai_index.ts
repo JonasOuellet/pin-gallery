@@ -18,12 +18,30 @@ async function getPortFree(): Promise<number> {
 }
 
 
+interface AiInfo {
+    indexEndPoint: string;
+    indexId: string;
+    indexApiEndpoint: string;
+    deployedIndex: string;
+}
+
+
+export enum AiInfoErrType {
+    IndexDoesntExist,
+    EndPointDoesntExist,
+    InvalidEndPointName,
+    InvalidEndPointDomain,
+    IndexNotDeployed,
+    InvalidDeployedIndexId,
+    InvalidDeployedIndex
+}
+
+
 export class IndexHandler {
     _indexClient: ai.IndexServiceClient
     _endPointClient: ai.IndexEndpointServiceClient 
     _project_id: string
     _region: string
-    _indexExists: boolean | null = null
 
     indexDisplayName: string = "collector"
 
@@ -33,7 +51,6 @@ export class IndexHandler {
     _indexId: string | null = null;
 
     _isCreatingIndex: boolean = false;
-    _isUndeployingIndex: boolean = false;
 
     _pythonProcess: ChildProcessWithoutNullStreams | null = null;
 
@@ -147,37 +164,42 @@ export class IndexHandler {
         const DEPLOYED_INDEX_ID = "collector_search_indexv2_1702360075969"
         index id = "projects/720328317830/locations/northamerica-northeast1/indexes/54324670505156608"
     */
-    async getEndPointInfo(): Promise<[string, string, string, string]> {
-        if (!(this._indexApiEndpoint && this._indexEndPoint && this._deployedIndex && this._indexId)) {
-            let endPoint = await this.endPoint();
-            if (!endPoint) {
-                this._indexApiEndpoint = null;
-                this._indexEndPoint = null;
-                this._deployedIndex = null;
-                this._indexId = null;
-                return Promise.reject(new Error("Couldn't find index enpoint"))
-            }
-            // "0.northamerica-northeast1-720328317830.vdb.vertexai.goog"
-            this._indexApiEndpoint = endPoint.publicEndpointDomainName || "";
-            // "projects/720328317830/locations/northamerica-northeast1/indexEndpoints/7034059667999293440"
-            this._indexEndPoint = endPoint.name || "";
-            if (endPoint.deployedIndexes && endPoint.deployedIndexes.length > 0) {
-                // "collector_search_indexv2_1702360075969"
-                this._deployedIndex = endPoint.deployedIndexes[0].id || "";
-                // "projects/720328317830/locations/northamerica-northeast1/indexes/54324670505156608"
-                this._indexId = endPoint.deployedIndexes[0].index || "";
-            } else {
-                return Promise.reject(new Error("Index not deployed yet"));
-            }
+    async getAiInfo(): Promise<[AiInfo | null, AiInfoErrType | null]> {
+        let [endPoint, index] = await Promise.all([this.endPoint(), this.index()]);
+        if (!index) {
+            return [null, AiInfoErrType.IndexDoesntExist];
         }
+        if (!index.name) {
+            return [null, AiInfoErrType.InvalidDeployedIndex];
+        }
+        const indexId = index.name;
+        if (!endPoint) {
+            return [null, AiInfoErrType.EndPointDoesntExist];
+        };
+        if (!endPoint.name) {
+            return [null, AiInfoErrType.InvalidEndPointName];
+        };
+        const indexEndPoint = endPoint.name
+        if (!endPoint.publicEndpointDomainName) {
+            return [null, AiInfoErrType.InvalidEndPointDomain];
+        }
+        const indexApiEndpoint = endPoint.publicEndpointDomainName;
+        if (!endPoint.deployedIndexes || endPoint.deployedIndexes.length == 0) {
+            return [null, AiInfoErrType.IndexNotDeployed];
+        }
+        const deployedIndex = endPoint.deployedIndexes[0];
+        if (!deployedIndex.id) {
+            return [null, AiInfoErrType.InvalidDeployedIndexId];
+        }
+        const deployedIndexId = deployedIndex.id;
+        
+        return [{
+            indexEndPoint: indexEndPoint,
+            indexId: indexId,
+            deployedIndex: deployedIndexId,
+            indexApiEndpoint: indexApiEndpoint
 
-        return [
-            this._indexApiEndpoint,
-            this._indexEndPoint,
-            this._deployedIndex,
-            this._indexId
-        ]
-
+        }, null];
     }
 
     _parentPath(): string {
@@ -208,10 +230,7 @@ export class IndexHandler {
     }
 
     async indexExists(): Promise<boolean> {
-        if (this._indexExists === null) {
-            this._indexExists = await this.index() !== null;
-        }
-        return this._indexExists;
+        return await this.index() !== null;
     }
 
     async endPoint(): Promise<google.cloud.aiplatform.v1.IIndexEndpoint | null> {
@@ -266,7 +285,6 @@ export class IndexHandler {
         });
         // reset stored value
         let ret = await operation.promise();
-        this._indexExists = null;
         return ret;
     }
 
@@ -299,31 +317,41 @@ export class IndexHandler {
         })
     }
 
-    async deployIndex(): Promise<void> {
+    async deployIndex(): Promise<string | null> {
         return Promise.all([this.createIndex(), this.createEndPoint()])
-            .then(([[index, _indexMeta, _indexOpt], [endPoint, _endPointMeta, _endPointOpt]]) => {
+            .then(async ([[index, _indexMeta, _indexOpt], [endPoint, _endPointMeta, _endPointOpt]]) => {
                 if (!index.name) {
                     return Promise.reject("Couldn't find index name.")
                 }
-                return this._endPointClient.deployIndex({
-                    deployedIndex: {
-                        id: "collector_search_index",
-                        index: index.name,
-                        displayName: "Deployed collector search index",
-                        dedicatedResources: {
-                            machineSpec: {
-                                machineType: "e2-standard-2",
-                            },
-                            minReplicaCount: 1,
-                            maxReplicaCount: 1,
-                        }
-                    },
-                    indexEndpoint: endPoint.name
-                })
-            })
-            .then(async ([deployIndexResponse, metadata, _opt]) => {
-                // https://cloud.google.com/nodejs/docs/reference/aiplatform/3.3.0/aiplatform/v1.indexendpointserviceclient#_google_cloud_aiplatform_v1_IndexEndpointServiceClient_checkDeployIndexProgress_member_1_
-                const [response] = await deployIndexResponse.promise();
+                try {
+                    let [response, operation] = await this._endPointClient.deployIndex({
+                        deployedIndex: {
+                            id: "collector_search_index",
+                            index: index.name,
+                            displayName: "Deployed collector search index",
+                            dedicatedResources: {
+                                machineSpec: {
+                                    machineType: "e2-standard-2",
+                                },
+                                minReplicaCount: 1,
+                                maxReplicaCount: 1,
+                            }
+                        },
+                        indexEndpoint: endPoint.name
+                    })
+
+                    if (response.done) {
+                        return null;
+                    }
+                    if (operation && operation.name) {
+                        return operation.name
+                    }
+
+                } catch (err) {
+                    // the index might be undeploying...
+                    return null;
+                }
+                return null;
             })
     }
 
@@ -339,8 +367,6 @@ export class IndexHandler {
                 })
                 .finally(() => {
                     this._isCreatingIndex = false;
-                    // reset so we fetch the value again
-                    this._indexExists = null;
                 })
         }
     }
@@ -359,15 +385,19 @@ export class IndexHandler {
         return this.vectorize_local_file(filename)
         .then(async (vector) => {
             // todo find those value.
-            const [API_ENDPOINT, INDEX_ENDPOINT, DEPLOYED_INDEX_ID, INDEX] = await this.getEndPointInfo();
+            const [apiInfo, err] = await this.getAiInfo();
+            if (err || apiInfo === null) {
+                // TODO: add a method to get text from error
+                return Promise.reject(err);
+            }
 
             let matchClient = new ai.MatchServiceClient({
-                apiEndpoint: API_ENDPOINT,
+                apiEndpoint: apiInfo.indexApiEndpoint,
                 projectId: this._project_id
             });
             return matchClient.findNeighbors({
-                deployedIndexId: DEPLOYED_INDEX_ID,
-                indexEndpoint: INDEX_ENDPOINT,
+                deployedIndexId: apiInfo.deployedIndex,
+                indexEndpoint: apiInfo.indexEndPoint,
                 returnFullDatapoint: false,
                 queries: [
                     {
@@ -396,9 +426,13 @@ export class IndexHandler {
 
     async addDataPoint(filename: string, id: string) {
         return this.vectorize_local_file(filename).then(async (vector) => {
-            const [API_ENDPOINT, INDEX_ENDPOINT, DEPLOYED_INDEX_ID, INDEX] = await this.getEndPointInfo();
+            const [aiInfo, err] = await this.getAiInfo();
+            if (err || aiInfo === null) {
+                // TODO: better handle the err here.
+                return Promise.reject(err);
+            }
             let response = await this._indexClient.upsertDatapoints({
-                index: INDEX,
+                index: aiInfo.indexId,
                 datapoints: [{
                     datapointId: id,
                     featureVector: vector
@@ -407,39 +441,50 @@ export class IndexHandler {
         })
     }
 
-    isUndeployingIndex(): boolean {
-        return this._isUndeployingIndex;
+    async isIndexDeployed(): Promise<boolean> {
+        const [aiInfo, err] = await this.getAiInfo();
+        if (err || aiInfo === null) {
+            return false;
+        }
+        return true;
     }
 
-    async isIndexDeployed(): Promise<boolean> {
+    async undeployIndex(): Promise<string | null> {
+        const [aiInfo, err] = await this.getAiInfo();
+        if (err || aiInfo === null) {
+            return null;
+        }
         try {
-            const [API_ENDPOINT, INDEX_ENDPOINT, DEPLOYED_INDEX_ID, INDEX] = await this.getEndPointInfo();
-            if (DEPLOYED_INDEX_ID) {
-                return true;
+            let [response, operation] = await this._endPointClient.undeployIndex({
+                deployedIndexId: aiInfo.deployedIndex,
+                indexEndpoint: aiInfo.indexEndPoint
+            });
+            // this will always return true for some reason.
+            // if (response.done) {
+            //     return null;
+            // }
+            if (operation && operation.name) {
+                return operation.name
             }
+            return null;
         } catch (err) {
-            // probably raised because index is not deployed yet.
+            return null;
+        }
+    }
+
+    async checkDeployOperation(name: string): Promise<boolean> {
+        let response = await this._endPointClient.checkDeployIndexProgress(name);
+        if (response.done) {
+            return true;
         }
         return false;
     }
-
-    async undeployIndex(): Promise<void> {
-        const [API_ENDPOINT, INDEX_ENDPOINT, DEPLOYED_INDEX_ID, INDEX] = await this.getEndPointInfo();
-        if (!DEPLOYED_INDEX_ID) {
-            return Promise.reject("Index not deployed.");
+    
+    async checkUndeployOperation(name: string): Promise<boolean> {
+        let response = await this._endPointClient.checkUndeployIndexProgress(name);
+        if (response.done) {
+            return true;
         }
-        this._isUndeployingIndex = true;
-        try {
-            const [operation] = await this._endPointClient.undeployIndex({
-                deployedIndexId: DEPLOYED_INDEX_ID,
-                indexEndpoint: INDEX_ENDPOINT
-            });
-            const [response] = await operation.promise();
-        } catch (err) {
-            return Promise.reject(err); 
-        } finally {
-            // reset value so we refetch.
-            this._deployedIndex = null;
-        }
+        return false;
     }
 }
