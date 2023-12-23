@@ -14,10 +14,11 @@
     <div id="indexbuttondiv" style="text-align: center;">
         <button id="indexactiondeploy" style="display: none;" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored">Deployer l'index</button>
         <button id="indexactionundeploy" style="display: none;" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored">Annuler le deploiement de l'index</button>
+        <button id="indexactioncreate" style="display: none;" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored">Creer l'index</button>
     </div>
 </div>
 
-<div class="demo-card-wide mdl-card mdl-shadow--2dp" style="width: 60%; min-width: 800px; margin-top: 60px; margin: auto;">
+<div id="addnewitem" class="demo-card-wide mdl-card mdl-shadow--2dp" style="width: 60%; min-width: 800px; margin-top: 60px; margin: auto; display: none;">
     <div class="mdl-card__title">
         <h2 class="mdl-card__title-text">Ajout d'un nouvel item</h2>
     </div>
@@ -49,6 +50,18 @@
         <input class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" id="addNewItem" type="button" value="Ajouter">
     </div>
 </div>
+
+<dialog class="mdl-dialog">
+    <h2 id="dialogtitle" class="mdl-dialog__title">Operation Complete</h2>
+    <div class="mdl-dialog__content">
+        <p id="dialogcontent">
+            Deploiement Completer
+        </p>
+      </div>
+      <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
+        <button id="dialogok" type="button" class="mdl-button">Ok!</button>
+      </div>
+</dialog>
 
 <script src="/js/index.js"></script>
 <%- include('../partials/footer') %>

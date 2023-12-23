@@ -50,14 +50,12 @@ class Rect {
 }
 
 
-class PhotoCapture {
+class Collectionneur {
     width: number;
     height: number;
 
-    // |streaming| indicates whether or not we're currently streaming
     // video from the camera. Obviously, we start at false.
     stream: MediaStream | null;
-    streaming: boolean;
 
     video: HTMLVideoElement;
     canvas: HTMLCanvasElement;
@@ -71,7 +69,6 @@ class PhotoCapture {
     _initialImagePosition: Point2D = Point2D.origin();
 
     constructor() {
-        this.streaming = false;
         this.width = 256;
         this.height = 256;
 
@@ -158,17 +155,7 @@ class PhotoCapture {
                 this.stream = stream;
                 this.video.srcObject = stream;
                 this.video.play();
-                // setup camera event
-                this.video.addEventListener(
-                    "canplay",
-                    (ev) => {
-                        if (!this.streaming) {
-                            this.streaming = true;
-                        }
-                    },
-                    false,
-                );
-            
+
                 getElemById<HTMLButtonElement>("captureBtn").addEventListener(
                     "click",
                     (ev) => {
@@ -201,6 +188,61 @@ class PhotoCapture {
                 event.preventDefault();
             }
         })
+
+        $("#addNewItem").on("click", (event) => {
+            // https://stackoverflow.com/questions/49826266/nodejs-cannot-upload-file-using-multer-via-ajax
+           this.getImageFile()
+                .then((image) => {
+                let formData = new FormData();
+                formData.append("image", image, "newImage.png");
+                $.ajax({
+                    url: "/item/create",
+                    data: formData,
+                    method: "POST",
+                    processData: false,
+                    contentType: false,
+                    success: (data) => {
+                        showDialog("Nouvel Item", "Item ajoute avec succes.")
+                        // TODO: update the list of item added. Show the image in the dialog to confirm
+                    },
+                    error: (xhr, status, error) => {
+                        // TODO: pass
+                        console.log(xhr.responseText);
+                    }
+                })
+            })
+        });
+    
+        $("#index_search").on("click", (event) => {
+            let elem = $("#imageSearchResult");
+            if (!elem) {
+                throw new Error("Invalid element")
+            }
+            $("#imageSearchBar").css("visibility", "visible");
+            for (let node of elem.find("img")) {
+                node.remove();
+            }
+            for (let node of elem.find("p")) {
+                node.remove();
+            }
+            this.similarImage()
+                .then((res) => {
+                    for (let img of res.results) {
+                        elem.append($('<img />')
+                            .attr('src', img.url)
+                            .attr('style', "padding: 10px; max-width: 15%")
+                        );
+                    }
+                })
+                .catch((err) => {
+                    elem.append($("<p />").text(`Une erreur est survenue: ${err}`));
+                })
+                .finally(() => {
+                    // remove loading
+                    $("#imageSearchBar").css("visibility", "hidden");
+                });
+        })
+
     }
 
     imgReceived(image: ImageBitmap) {
@@ -218,7 +260,6 @@ class PhotoCapture {
     // drawing that to the screen, we can change its size and/or apply
     // other changes before drawing it.
     takePicture() {
-
         this.image = null;
         this.clearPhoto();
         if (this.stream !== null) {
@@ -239,18 +280,6 @@ class PhotoCapture {
             }
         }
     }
-    
-    setImageFromInput() {
-        this.image = null;
-        this.clearPhoto();
-        let input = getElemById<HTMLInputElement>("image_input_browsed");
-        if (input.files !== null) {
-            let file = input.files[0];
-            createImageBitmap(file).then((image) => {
-                this.imgReceived(image)
-            })
-        }
-    }
 
     async similarImage(): Promise<{results: {url: string, distance: number}[]}> {
         // https://stackoverflow.com/questions/49826266/nodejs-cannot-upload-file-using-multer-via-ajax
@@ -258,7 +287,6 @@ class PhotoCapture {
             .then((image) => {
                 let formData = new FormData();
                 formData.append("image", image, "newImage.png");
-                formData.append("count", "5");
                 return new Promise((resolve, reject) => {
                     $.ajax({
                         url: "/item/similarimage",
@@ -270,7 +298,7 @@ class PhotoCapture {
                             resolve(data);
                         },
                         error: (xhr, status, error) => {
-                            reject(error);
+                            reject(xhr.responseText);
                         }
                     })
                 })
@@ -296,25 +324,25 @@ class PhotoCapture {
     }
 }
 
-function showViewLiveResultButton(): boolean {
-    if (window.self !== window.top) {
-        // Ensure that if our document is in a frame, we get the user
-        // to first open it in its own tab or window. Otherwise, it
-        // won't be able to request permission for camera access.
-        let contentarea = document.querySelector(".contentarea");
-        if (contentarea !== null) {
-            contentarea.remove();
-        };
-        const button = document.createElement("button");
-        button.textContent = "View live result of the example code above";
-        document.body.append(button);
-        button.addEventListener("click", () => window.open(location.href));
-        return true;
+let fetchIntervalNumber: number | null = null;
+let isDeployingIndex =  false;
+let collectionneur: Collectionneur | null = null;
+
+
+function initAddNewItem() {
+    if (collectionneur === null) {
+        collectionneur = new Collectionneur();
+        collectionneur.init();
     }
-    return false;
+    collectionneur.clearPhoto();
+    // show the foirm
+    $("#addnewitem").show();
 }
 
-let fetchIntervalNumber: number | null = null;
+function uninitAddNewItem() {
+    // simply hide the form
+    $("#addnewitem").hide();
+}
 
 function fetchIndexWithInterval() {
     if (fetchIntervalNumber !== null) {
@@ -338,6 +366,7 @@ function undeployInProgess() {
 function deployInProgress() {
     $("#indexstatus").text("Deploiement de l'index en court.  Veuillez patienter...");
     $("#indexstatusbar").show();
+    isDeployingIndex = true;
 }
 
 
@@ -353,6 +382,7 @@ function indexValid() {
                 btn.hide();
                 undeployInProgess();
                 fetchIndexWithInterval();
+                uninitAddNewItem();
             },
             error: (err) => {
                 btn.hide();
@@ -361,11 +391,22 @@ function indexValid() {
             }
         })
     }
+
+    // if the index was behing deployed show the dialog
+    if (isDeployingIndex) {
+        showDialog(
+            "Index Deploye",
+            "L'index est deploye et pret a etre utilise."
+        );
+        isDeployingIndex = false;
+    }
+
+    initAddNewItem();
 }
 
 
 function indexNotDeployed(){
-    $("#indexstatus").text("L'index n'est pas deploye.");
+    $("#indexstatus").text("L'index n'est pas deploye.  Veuillez deployer l'index avant de pouvoir ajouter des nouveaux items.");
     let btn = $("#indexactiondeploy");
     btn.show();
     (btn.get(0) as HTMLElement).onclick = () => {
@@ -415,11 +456,17 @@ function updateState(data: {status: string}) {
     }
     else if (data.status === "IndexDoesntExist") {
         if ((data as any).remaining > 0) { 
-            $("#indexstatus").text("L'index est pret a etre cree");
-            // TODO: add button to create index.
+            $("#indexstatus").text(`Ajouter encore ${(data as any).remaining} items pour pouvoir creer l'index.`);
+            initAddNewItem();
         }
         else {
-            $("#indexstatus").text(`Ajouter encore ${(data as any).remaining} items pour pouvoir creer l'index.`);
+            $("#indexstatus").text("L'index est pret a etre cree");
+
+            let btn = $("#indexactioncreate");
+            btn.show();
+            (btn.get(0) as HTMLElement).onclick = () => {
+                // TODO: implement on click handler
+            }
         }
     }
     else if (data.status === "IndexValid") {
@@ -438,7 +485,7 @@ function fetchIndexStatus() {
             updateState(data);
         },
         error: (data) => {
-            $("#indexstatus").text("Une erreur est survenue: " + data);
+            $("#indexstatus").text("Une erreur est survenue: " + data.responseText);
             $("#indexstatusbar").hide();
             if (fetchIntervalNumber !== null) {
                 clearInterval(fetchIntervalNumber);
@@ -446,6 +493,16 @@ function fetchIndexStatus() {
             }
         }
     })
+}
+
+function showDialog(title: string, content: string) {
+    let dialog = document.querySelector("dialog") as HTMLDialogElement;
+    (dialog.querySelector("#dialogtitle") as HTMLTitleElement).innerText = title;
+    (dialog.querySelector("#dialogcontent") as HTMLParagraphElement).innerText = content;
+    (dialog.querySelector("#dialogok") as HTMLButtonElement).onclick = () => {
+        dialog.close();
+    }
+    dialog.showModal();
 }
 
 
@@ -469,52 +526,5 @@ $(() => {
         })
     })
 
-    fetchIndexStatus();
-
-    if (!showViewLiveResultButton()) {
-        let capture = new PhotoCapture;
-        capture.clearPhoto();
-        capture.init();
-
-
-        $("#addNewItem").on("click", (event) => {
-            // TODO: Implement post request
-            capture.setImageInput().then(() => {
-                // handle the tag
-            }).catch((err) => {
-                console.log(err);
-            });
-        });
-
-        $("#index_search").on("click", (event) => {
-            let elem = $("#imageSearchResult");
-            if (!elem) {
-                throw new Error("Invalid element")
-            }
-            $("#imageSearchBar").css("visibility", "visible");
-            for (let node of elem.find("img")) {
-                node.remove();
-            }
-            for (let node of elem.find("p")) {
-                node.remove();
-            }
-            capture.similarImage()
-                .then((res) => {
-                    for (let img of res.results) {
-                        elem.append($('<img />')
-                            .attr('src', img.url)
-                            .attr('style', "padding: 10px;")
-                        );
-                    }
-                })
-                .catch((err) => {
-                    console.log(err);
-                    elem.append($("<p />").text(`Une erreur est survenue: ${err}`));
-                })
-                .finally(() => {
-                    // remove loading
-                    $("#imageSearchBar").css("visibility", "hidden");
-                });
-        })
-    }
+    fetchIndexStatus();       
 });

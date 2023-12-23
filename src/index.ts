@@ -157,11 +157,14 @@ app.get('/indexstatus', async (req: express.Request, res: express.Response) => {
     if (!req.user || req.isUnauthenticated()) {
         return res.status(401).send("Unautorized.")
     }
+
     try {
         let userDoc = db.doc(`Users/${user.id}`);
         let userData = (await userDoc.get()).data() as User | undefined;
+        
         // first check if there are operations
         if (userData) {
+
             if (userData.deployOperation) {
                 // query google to see if the operation is completed. or in progress
                 if (await indexHandler.checkDeployOperation(userData.deployOperation)) {
@@ -204,8 +207,8 @@ app.get('/indexstatus', async (req: express.Request, res: express.Response) => {
                 return res.send({
                     currentItemCount: count,
                     itemNeeded: ITEM_TO_BUILD_INDEX,
-                    remaining: Math.max(0, count - ITEM_TO_BUILD_INDEX),
-                    status: IndexStatus.IndexDoesntExist
+                    remaining: Math.max(0, ITEM_TO_BUILD_INDEX - count),
+                    status: IndexStatus[IndexStatus.IndexDoesntExist]
                 });
             }
             if (err === AiInfoErrType.EndPointDoesntExist) {
@@ -234,7 +237,7 @@ app.post(
     passport.authenticate(
         'local',
         {
-            failureRedirect: '/login',
+            failureRedirect: '/',
         }
     ),
     (req: express.Request, res: express.Response) => {
@@ -249,18 +252,10 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
         res.redirect('/');
     }
 
-    const img_name = req.body.image_name;
-    const description = req.body.description;
-    
     let file = req.file;
     if (file === undefined) {
         // TODO: handle error here
         return res.redirect('/');
-    }
-    if (req.body.tags) {
-        const tags = (req.body.tags as string).split(';');
-    } else {
-        const tags: String[] = [];
     }
     let url;
     // create a new item so we can have the id
@@ -280,8 +275,6 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
     }
     try {
         let data: DBItem = {
-            name: img_name,
-            description: description,
             timestamp: Timestamp.now(),
             url: url
         }
@@ -304,16 +297,6 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
     } else {
         // we need to delete the file here so we use it to update the index
         unlink(file.path, () => {});
-        // check how many item count
-        let count = await db.doc(`Users/${user.id}`)
-            .collection("items")
-            .count()
-            .get();
-
-        if (count.data().count >= 10) {
-            // generate index
-            indexHandler.startIndexCreation();
-        }
     }
 
     res.redirect("/");
@@ -333,7 +316,7 @@ app.post('/item/similarimage', upload.single('image'), async (req: express.Reque
     }
 
     try {
-        let result = await indexHandler.find_similar_local(file.path)
+        let result = await indexHandler.findSimilarLocal(file.path)
         let urls: {url: string, distance: number}[] = [];
         let collection = db.doc(`Users/${user.id}`).collection("items");
         for (let r of result) {
@@ -348,7 +331,7 @@ app.post('/item/similarimage', upload.single('image'), async (req: express.Reque
         });
 
     } catch (err) {
-        res.status(400).send("Error occured: " + err);
+        res.status(400).send(err);
     }
     finally {
         unlink(file.path, () => {});
@@ -415,7 +398,7 @@ app.get('/deployindex', async (req: express.Request, res: express.Response) => {
         return res.send();
     }
 
-    return res.status(400).send("L'index est deja deploye ou est en cours d'annulation.  Veuillez reessayer plus tard.");
+   return res.status(400).send("L'index est deja deploye ou est en cours d'annulation.  Veuillez reessayer plus tard.");
 })
 
 

@@ -195,8 +195,6 @@ interface DBCollectionCreate {
 
 
 export interface DBItem {
-    name: string,
-    description: string,
     timestamp: FirebaseFirestore.Timestamp
     url: string
 }

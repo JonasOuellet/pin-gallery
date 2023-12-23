@@ -158,6 +158,16 @@ export class IndexHandler {
         });
     }
 
+    getErrorText(error: AiInfoErrType): string {
+        switch (error) {
+            case AiInfoErrType.IndexNotDeployed:
+                return "L'index n'est pas deploye"
+            case AiInfoErrType.IndexDoesntExist:
+                return "L'index n'est pas encore cree"
+        }
+        return "";
+    }
+
     /*
         const API_ENDPOINT = "0.northamerica-northeast1-720328317830.vdb.vertexai.goog"
         const INDEX_ENDPOINT = "projects/720328317830/locations/northamerica-northeast1/indexEndpoints/7034059667999293440"
@@ -371,7 +381,7 @@ export class IndexHandler {
         }
     }
 
-    async vectorize_local_file(filename: string): Promise<number[]> {
+    async vectorizeLocalFile(filename: string): Promise<number[]> {
         return this.sendVectorizerCommand(`vectorize ${filename}`)
             .then(async (result: {filepath: string}) => {
                 // check if file exists
@@ -381,14 +391,15 @@ export class IndexHandler {
         })
     }
 
-    async find_similar_local(filename: string, count: number = 5): Promise<{id: string, distance: number}[]> {
-        return this.vectorize_local_file(filename)
+    async findSimilarLocal(filename: string, count: number = 5): Promise<{id: string, distance: number}[]> {
+        return this.vectorizeLocalFile(filename)
         .then(async (vector) => {
-            // todo find those value.
             const [apiInfo, err] = await this.getAiInfo();
-            if (err || apiInfo === null) {
-                // TODO: add a method to get text from error
-                return Promise.reject(err);
+            if (err) {
+                return Promise.reject(this.getErrorText(err));
+            }
+            if (apiInfo === null) {
+                return Promise.reject("Impossible de d'acceder a l'index pour le moment");
             }
 
             let matchClient = new ai.MatchServiceClient({
@@ -425,11 +436,13 @@ export class IndexHandler {
     }
 
     async addDataPoint(filename: string, id: string) {
-        return this.vectorize_local_file(filename).then(async (vector) => {
+        return this.vectorizeLocalFile(filename).then(async (vector) => {
             const [aiInfo, err] = await this.getAiInfo();
-            if (err || aiInfo === null) {
-                // TODO: better handle the err here.
-                return Promise.reject(err);
+            if (err) {
+                return Promise.reject(this.getErrorText(err));
+            }
+            if (aiInfo === null) {
+                return Promise.reject("Impossible de d'acceder a l'index pour le moment");
             }
             let response = await this._indexClient.upsertDatapoints({
                 index: aiInfo.indexId,
