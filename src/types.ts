@@ -6,6 +6,8 @@ export enum IndexStatus{
     IndexNotDeployed,
     IndexIsBeingDeployed,
     IndexIsBeingUndeployed,
+    IndexIsBeingCreated,
+    EndpointIsBeingCreated
 }
 
 
@@ -15,7 +17,9 @@ export interface User {
     salt: Buffer,
     id: string,
     deployOperation: string | null,
-    undeployOperation: string | null
+    undeployOperation: string | null,
+    createIndexOperation: string | null,
+    createEndPointOpreation: string | null
 }
 
 

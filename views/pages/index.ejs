@@ -51,7 +51,7 @@
     </div>
 </div>
 
-<dialog class="mdl-dialog">
+<dialog id="simplemsgdialog" class="mdl-dialog" style="width: 30%;">
     <h2 id="dialogtitle" class="mdl-dialog__title">Operation Complete</h2>
     <div class="mdl-dialog__content">
         <p id="dialogcontent">
@@ -60,6 +60,33 @@
       </div>
       <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
         <button id="dialogok" type="button" class="mdl-button">Ok!</button>
+      </div>
+</dialog>
+
+<dialog id="itemaddeddialog" class="mdl-dialog" style="width: 30%;">
+    <h2 id="dialogtitle" class="mdl-dialog__title">Succes</h2>
+    <div class="mdl-dialog__content">
+        <p id="dialogcontent">
+            Nouvelle item ajoute avec succes.
+        </p>
+        <img style="max-width: 128px; max-height: 128px; margin: auto; display: block;">
+      </div>
+      <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
+        <button id="imgdialogok" type="button" class="mdl-button">Ok!</button>
+      </div>
+</dialog>
+
+<dialog id="deploydialog" class="mdl-dialog" style="width: 30%;">
+    <h2 id="dialogtitle" class="mdl-dialog__title">Index cree</h2>
+    <div class="mdl-dialog__content">
+        <p id="dialogcontent">
+            Vous pouvez maintenant deployer l'index.
+        </p>
+        <img style="max-width: 128px; max-height: 128px; margin: auto; display: block;">
+        </div>
+        <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
+            <button id="deploynow" type="button" class="mdl-button">Deployer maintenant</button>
+            <button id="deploylater" type="button" class="mdl-button">Deployer plus tard</button>
       </div>
 </dialog>
 

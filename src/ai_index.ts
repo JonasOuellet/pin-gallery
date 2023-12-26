@@ -50,8 +50,6 @@ export class IndexHandler {
     _deployedIndex: string | null = null;
     _indexId: string | null = null;
 
-    _isCreatingIndex: boolean = false;
-
     _pythonProcess: ChildProcessWithoutNullStreams | null = null;
 
     _pythonPort: number = 0;
@@ -255,14 +253,10 @@ export class IndexHandler {
         return null
     }
 
-    async createIndex(): Promise<[
-        google.cloud.aiplatform.v1.IIndex,
-        google.cloud.aiplatform.v1.ICreateIndexOperationMetadata | null,
-        google.longrunning.Operation | null
-    ]> {
+    async createIndex(): Promise<string | null> {
         let index = await this.index();
         if (index !== null) {
-            return [index, null, null];
+            return null;
         }
 
         index = new google.cloud.aiplatform.v1.Index({
@@ -293,28 +287,30 @@ export class IndexHandler {
             parent: this._parentPath(),
             index: index
         });
-        // reset stored value
-        let ret = await operation.promise();
-        return ret;
+        if (operation.name){
+            return operation.name
+        }
+
+        return null;
+        // return Promise.reject("Couldn't retrieve index operation name.")
     }
 
-    async createEndPoint(): Promise<[
-        google.cloud.aiplatform.v1.IEndpoint,
-        google.cloud.aiplatform.v1.ICreateEndpointOperationMetadata | null,
-        google.longrunning.Operation | null
-    ]>{
+    async createEndPoint(): Promise<string | null> {
         let endPoint = await this.endPoint();
         if (endPoint !== null) {
-            return [endPoint, null, null];
+            return null;
         }
-        // let projectNumber = await this.projectNumber();
         const [operation] = await this._endPointClient.createIndexEndpoint({
             parent: this._parentPath(),
             indexEndpoint: {
                 displayName: this.indexDisplayName
             }
         });
-        return await operation.promise();
+        if (operation.name) {
+            return operation.name;
+        }
+        return null;
+        // return Promise.reject("Couldn't retrieve endpoint operation name.")
     }
 
     async generateIndex(): Promise<number> {
@@ -328,57 +324,54 @@ export class IndexHandler {
     }
 
     async deployIndex(): Promise<string | null> {
-        return Promise.all([this.createIndex(), this.createEndPoint()])
-            .then(async ([[index, _indexMeta, _indexOpt], [endPoint, _endPointMeta, _endPointOpt]]) => {
-                if (!index.name) {
-                    return Promise.reject("Couldn't find index name.")
-                }
-                try {
-                    let [response, operation] = await this._endPointClient.deployIndex({
-                        deployedIndex: {
-                            id: "collector_search_index",
-                            index: index.name,
-                            displayName: "Deployed collector search index",
-                            dedicatedResources: {
-                                machineSpec: {
-                                    machineType: "e2-standard-2",
-                                },
-                                minReplicaCount: 1,
-                                maxReplicaCount: 1,
-                            }
+        let [index, endpoint] = await Promise.all([this.index(), this.endPoint()]);
+        if (!index) {
+            return Promise.reject("Index is not created.")
+        }
+        if (!endpoint) {
+            return Promise.reject("Endpoint is not created.")
+        }
+        if (!index.name) {
+            return Promise.reject("Couldn't find index name.")
+        }
+        if (!endpoint.name) {
+            return Promise.reject("Couldn't find endpoint name.")
+        }
+        try {
+            let [response, operation] = await this._endPointClient.deployIndex({
+                deployedIndex: {
+                    id: "collector_search_index",
+                    index: index.name,
+                    displayName: "Deployed collector search index",
+                    dedicatedResources: {
+                        machineSpec: {
+                            machineType: "e2-standard-2",
                         },
-                        indexEndpoint: endPoint.name
-                    })
-
-                    if (response.done) {
-                        return null;
+                        minReplicaCount: 1,
+                        maxReplicaCount: 1,
                     }
-                    if (operation && operation.name) {
-                        return operation.name
-                    }
-
-                } catch (err) {
-                    // the index might be undeploying...
-                    return null;
-                }
-                return null;
+                },
+                indexEndpoint: endpoint.name
             })
+
+            if (response.done) {
+                return null;
+            }
+            if (operation && operation.name) {
+                return operation.name
+            }
+
+        } catch (err) {
+            // the index might be undeploying...
+        }
+        return null;
     }
 
-    startIndexCreation() {
-        if (!this._isCreatingIndex) {
-            this._isCreatingIndex = true;
-            this.generateIndex()
-                .then((_) =>{
-                    return this.deployIndex();
-                })
-                .catch((err) => {
-                    console.log(err);
-                })
-                .finally(() => {
-                    this._isCreatingIndex = false;
-                })
-        }
+    async startIndexCreation(): Promise<[string | null, string | null]> {
+        return this.generateIndex()
+            .then((_) =>{
+                return Promise.all([this.createIndex(), this.createEndPoint()])
+            })
     }
 
     async vectorizeLocalFile(filename: string): Promise<number[]> {
@@ -418,7 +411,7 @@ export class IndexHandler {
                 ]
             })
         }).then(([response, request, obj]) => {
-            let out = [];
+            let out: any[] = [];
             if (response.nearestNeighbors && response.nearestNeighbors.length == 1) {
                 if (response.nearestNeighbors[0].neighbors) {
                     for (let data of response.nearestNeighbors[0].neighbors) {
@@ -483,6 +476,22 @@ export class IndexHandler {
         } catch (err) {
             return null;
         }
+    }
+
+    async checkCreateIndexOperation(name: string): Promise<boolean> {
+        let response = await this._indexClient.checkCreateIndexProgress(name);
+        if (response.done) {
+            return true;
+        }
+        return false;
+    }
+
+    async checkCreateEndpointOperation(name: string): Promise<boolean> {
+        let reponse = await this._endPointClient.checkCreateIndexEndpointProgress(name);
+        if (reponse.done) {
+            return true;
+        }
+        return false;
     }
 
     async checkDeployOperation(name: string): Promise<boolean> {

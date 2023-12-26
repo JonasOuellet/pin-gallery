@@ -88,7 +88,7 @@ class Collectionneur {
     }
 
     drawImageAnimation() {
-        this.clearPhoto();
+        this.clearCanvas();
         if (this.image !== null) {
             this.canvasContext.drawImage(
                 this.image,
@@ -178,7 +178,7 @@ class Collectionneur {
                 // scale from center
                 let currentWidth = this.image.width * this.imageScale;
                 let currentHeight = this.image.height * this.imageScale;
-                this.imageScale += event.deltaY * 0.0005;
+                this.imageScale += -event.deltaY * 0.0005;
                 this.imagePosition = this.imagePosition.add(new Point2D(
                     (currentWidth - (this.image.width * this.imageScale)) * 0.5,
                     (currentHeight - (this.image.height * this.imageScale)) * 0.5
@@ -193,24 +193,30 @@ class Collectionneur {
             // https://stackoverflow.com/questions/49826266/nodejs-cannot-upload-file-using-multer-via-ajax
            this.getImageFile()
                 .then((image) => {
-                let formData = new FormData();
-                formData.append("image", image, "newImage.png");
-                $.ajax({
-                    url: "/item/create",
-                    data: formData,
-                    method: "POST",
-                    processData: false,
-                    contentType: false,
-                    success: (data) => {
-                        showDialog("Nouvel Item", "Item ajoute avec succes.")
-                        // TODO: update the list of item added. Show the image in the dialog to confirm
-                    },
-                    error: (xhr, status, error) => {
-                        // TODO: pass
-                        console.log(xhr.responseText);
-                    }
-                })
-            })
+                    let formData = new FormData();
+                    formData.append("image", image, "newImage.png");
+                    $.ajax({
+                        url: "/item/create",
+                        data: formData,
+                        method: "POST",
+                        processData: false,
+                        contentType: false,
+                        success: (data) => {
+                            let dialog = document.querySelector("#itemaddeddialog") as HTMLDialogElement;
+                            (dialog.querySelector("img") as HTMLImageElement).src = data.url;
+                            (dialog.querySelector("#imgdialogok") as HTMLButtonElement).onclick = () => {
+                                this.clearPhoto();
+                                dialog.close();
+                                addNewImageElement(data.url, null, true);
+                            }
+                            dialog.showModal();
+                        },
+                        error: (xhr, status, error) => {
+                            showDialog("Erreur", xhr.responseText);
+                        }
+                    })
+                }
+            )
         });
     
         $("#index_search").on("click", (event) => {
@@ -260,7 +266,6 @@ class Collectionneur {
     // drawing that to the screen, we can change its size and/or apply
     // other changes before drawing it.
     takePicture() {
-        this.image = null;
         this.clearPhoto();
         if (this.stream !== null) {
             if (typeof(ImageCapture) === 'undefined') {
@@ -316,16 +321,21 @@ class Collectionneur {
         return file;
     }
 
-    // Fill the photo with an indication that none has been
-    // captured.
-    clearPhoto() {
+    clearCanvas() {
         this.canvasContext.fillStyle = "#777777";
         this.canvasContext.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
+    clearPhoto() {
+        this.clearCanvas();
+        this.image = null;
+        this.imageScale = 1;
     }
 }
 
 let fetchIntervalNumber: number | null = null;
-let isDeployingIndex =  false;
+let isDeployingIndex = false;
+let isCreatingIndex = true;
 let collectionneur: Collectionneur | null = null;
 
 
@@ -356,6 +366,13 @@ function fetchIndexWithInterval() {
     // check at each minute
     1000  * 60
     ) as any;
+}
+
+
+function createIndexInProgress() {
+    isCreatingIndex = true;
+    $("#indexstatus").text("Creation de l'index en cours.  Veuillez patienter...");
+    $("#indexstatusbar").show();
 }
 
 function undeployInProgess() {
@@ -397,39 +414,65 @@ function indexValid() {
         showDialog(
             "Index Deploye",
             "L'index est deploye et pret a etre utilise."
-        );
-        isDeployingIndex = false;
+            );
+            isDeployingIndex = false;
     }
 
     initAddNewItem();
 }
 
 
-function indexNotDeployed(){
+function deployIndex() {
+    let btn = $("#indexactiondeploy");
+    $.ajax({
+        type: "GET",
+        url: "/deployindex",
+        success: (data) => {
+            btn.hide();
+            deployInProgress();
+            fetchIndexWithInterval();
+        },
+        error: (err) => {
+            btn.hide();
+            $("#indexstatus").text(`Une erreur est survenue: ${err.responseText}.`);
+            btn.css("visibility", "hidden");
+        }
+    })
+}
+
+
+function indexNotDeployed() {
     $("#indexstatus").text("L'index n'est pas deploye.  Veuillez deployer l'index avant de pouvoir ajouter des nouveaux items.");
     let btn = $("#indexactiondeploy");
     btn.show();
     (btn.get(0) as HTMLElement).onclick = () => {
-        $.ajax({
-            type: "GET",
-            url: "/deployindex",
-            success: (data) => {
-                btn.hide();
-                deployInProgress();
-                fetchIndexWithInterval();
-            },
-            error: (err) => {
-                btn.hide();
-                $("#indexstatus").text(`Une erreur est survenue: ${err.responseText}.`);
-                btn.css("visibility", "hidden");
-            }
-        })
+        deployIndex();
     }
-}
+
+    if (isCreatingIndex) {
+        isCreatingIndex = false;
+        let dialog = document.querySelector("#deploydialog") as HTMLDialogElement;
+        (dialog.querySelector("#deploynow") as HTMLButtonElement).onclick = () => {
+            deployIndex();
+            dialog.close();
+        }
+        (dialog.querySelector("#deploylater") as HTMLButtonElement).onclick = () => {
+            dialog.close();
+        }
+        dialog.showModal();
+    }
+};
 
 
 function updateState(data: {status: string}) {
     // handle operation first
+    if (data.status === "createIndexOperation" || data.status === "createEndPointOpreation") {
+        createIndexInProgress();
+        // fetch status if not already fetching
+        fetchIndexWithInterval();
+        return;
+    }
+
     if (data.status === "IndexIsBeingDeployed") {
         deployInProgress();
         // fetch status if not already fetching
@@ -465,7 +508,23 @@ function updateState(data: {status: string}) {
             let btn = $("#indexactioncreate");
             btn.show();
             (btn.get(0) as HTMLElement).onclick = () => {
-                // TODO: implement on click handler
+                btn.hide();
+                createIndexInProgress();
+                fetchIndexWithInterval();
+                $.ajax({
+                    type: "GET",
+                    url: "/createindex",
+                    dataType: 'json',
+                    success: (data) => {
+                        // do nothing for now already in progress
+                        console.log(data);
+                    },
+                    error: (data) => {
+                        console.log(data);
+                        $("#indexstatus").text(`Une erreur est survenu: ${data.responseText}`);
+                        $("#indexstatusbar").hide();
+                    }
+                });
             }
         }
     }
@@ -496,13 +555,33 @@ function fetchIndexStatus() {
 }
 
 function showDialog(title: string, content: string) {
-    let dialog = document.querySelector("dialog") as HTMLDialogElement;
+    let dialog = document.querySelector("#simplemsgdialog") as HTMLDialogElement;
     (dialog.querySelector("#dialogtitle") as HTMLTitleElement).innerText = title;
     (dialog.querySelector("#dialogcontent") as HTMLParagraphElement).innerText = content;
     (dialog.querySelector("#dialogok") as HTMLButtonElement).onclick = () => {
         dialog.close();
     }
     dialog.showModal();
+}
+
+
+function addNewImageElement(url: string, elem: HTMLElement | null, insertAndRemoveLast: boolean) {
+    if (!elem) {
+        elem = $("#recentlyadded").get(0) as HTMLElement;
+    }
+    const thumbnailImage = $('<img />')
+    .attr('src', url)
+    .attr('style', "padding: 10px; max-width: 64px; max-height: 64px");
+    if (insertAndRemoveLast) {
+        if (elem.lastElementChild) {
+            elem.lastElementChild.remove();
+        }
+        if (elem.firstElementChild) {
+            elem.insertBefore(thumbnailImage.get(0) as HTMLElement, elem.firstElementChild);
+            return;
+        }
+    }
+    elem.appendChild(thumbnailImage.get(0) as HTMLElement);
 }
 
 
@@ -514,10 +593,7 @@ $(() => {
             dataType: 'json',
             success: (data) => {
                 for (let img of data.thumbnails) {
-                    const thumbnailImage = $('<img />')
-                        .attr('src', img)
-                        .attr('style', "padding: 10px; max-width: 64px; max-height: 64px");
-                    elem.appendChild(thumbnailImage.get(0) as HTMLElement);
+                    addNewImageElement(img, elem, false);
                 }
             },
             error: (data) => {

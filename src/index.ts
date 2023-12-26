@@ -165,6 +165,32 @@ app.get('/indexstatus', async (req: express.Request, res: express.Response) => {
         // first check if there are operations
         if (userData) {
 
+            if (userData.createIndexOperation) {
+                if (await indexHandler.checkCreateIndexOperation(userData.createIndexOperation)) {
+                    await userDoc.update({
+                        createIndexOperation: null
+                    });
+                }
+                else {
+                    return res.send(({
+                        status: IndexStatus[IndexStatus.IndexIsBeingCreated]
+                    }))
+                }
+            }
+            
+            if (userData.createEndPointOpreation) {
+                if (await indexHandler.checkCreateEndpointOperation(userData.createEndPointOpreation)) {
+                    await userDoc.update({
+                        createEndPointOpreation: null
+                    });
+                }
+                else {
+                    return res.send(({
+                        status: IndexStatus[IndexStatus.EndpointIsBeingCreated]
+                    }))
+                }
+            }
+
             if (userData.deployOperation) {
                 // query google to see if the operation is completed. or in progress
                 if (await indexHandler.checkDeployOperation(userData.deployOperation)) {
@@ -249,13 +275,12 @@ app.post(
 app.post('/item/create', upload.single('image'), async (req: express.Request, res: express.Response) => {
     let user = req.user as User;
     if (user === undefined || req.isUnauthenticated()) {
-        res.redirect('/');
+        return res.status(401).send("unauthorized")
     }
-
+    
     let file = req.file;
     if (file === undefined) {
-        // TODO: handle error here
-        return res.redirect('/');
+        return res.status(400).send("Couldn't fetch file from request.")
     }
     let url;
     // create a new item so we can have the id
@@ -267,9 +292,8 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
         let uploadRest = await bucket.upload(file.path, {destination: destination});
         url = (uploadRest[1] as any).mediaLink;
     } catch (err) {
-        console.log(err);
         unlink(file.path, () => {});
-        return res.redirect('/');
+        return res.status(400).send(`Error Occured: ${err}`)
     } finally {
         try { await doc.delete() } catch (err) {};
     }
@@ -280,9 +304,7 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
         }
         await doc.set(data);
     } catch(err) {
-        console.log("Error adding file to database");
-        console.log(err);
-        return res.redirect("/");
+        return res.status(400).send(`Couldn't add item to data base: ${err}`)
     }
 
     if (await indexHandler.indexExists()) {
@@ -299,7 +321,9 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
         unlink(file.path, () => {});
     }
 
-    res.redirect("/");
+    res.send({
+        url: url
+    })
 });
 
 
@@ -364,6 +388,35 @@ app.get('/items/read', async (req: express.Request, res: express.Response) => {
         return res.status(400).send('Error occured: ' + err);
     };
 });
+
+
+app.get('/createindex', async (req: express.Request, res: express.Response) => {
+    let user = req.user as User;
+    if (user === undefined || req.isUnauthenticated()) {
+        return res.status(401).send("Unautorised");
+    }
+    // make sure we have enough item
+    let doc = db.doc(`Users/${user.id}`);
+    let count = (await doc
+        .collection("items")
+        .count()
+        .get())
+        .data()
+        .count;
+    
+    if (count < ITEM_TO_BUILD_INDEX) {
+        return res.status(400).send("Il n'y a pas assez d'item ajouter.  ajouter plus d'item avant de creer l'index.");
+    }
+    let [indexOp, endPointOp] = await indexHandler.startIndexCreation();
+
+    await doc.update({
+        createIndexOperation: indexOp,
+        createEndPointOpreation: endPointOp
+    })
+
+    return res.send({status: "Index en cours de creation."})
+    
+})
 
 
 app.get('/undeployindex', async (req: express.Request, res: express.Response) => {
