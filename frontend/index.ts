@@ -335,7 +335,7 @@ class Collectionneur {
 
 let fetchIntervalNumber: number | null = null;
 let isDeployingIndex = false;
-let isCreatingIndex = true;
+let isCreatingIndex = false;
 let collectionneur: Collectionneur | null = null;
 
 
