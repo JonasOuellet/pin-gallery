@@ -10,7 +10,7 @@ import { Storage } from "@google-cloud/storage";
 import { Firestore, Timestamp } from "@google-cloud/firestore";
 import { FirestoreStore } from '@google-cloud/connect-firestore';
 
-import { existsSync, mkdirSync, unlink } from 'fs';
+import { existsSync, mkdirSync, renameSync, unlink } from 'fs';
 import * as path from "path";
 
 import { IndexHandler, AiInfoErrType } from './ai_index';
@@ -165,6 +165,8 @@ async function getConnectionIp(req: express.Request)  {
 
 app.get('/', async (req: express.Request, res: express.Response) => {
     if (req.user && req.isAuthenticated()) {
+        let data = await db.doc(`Users/${(req.user as any).id}`).collection("items").count().get();
+        res.locals.nbitems = data.data().count;
         return res.render('pages/index');
     }
     return res.render("pages/login");
@@ -355,41 +357,39 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
     if (file === undefined) {
         return res.status(400).send("Couldn't fetch file from request.")
     }
-    let url;
     // create a new item so we can have the id
     let doc = db.doc(`Users/${user.id}`)
         .collection("items")
         .doc();
+
+    let ext = path.extname(file.filename);
+    let imgPath = path.resolve(path.join("images", doc.id + ext));
+    let destination = doc.id + ext;
     try {
-        let destination = doc.id + '.' + file.filename.split('.')[1];
-        let uploadRest = await bucket.upload(file.path, {destination: destination});
+        await bucket.upload(file.path, {destination: destination});
     } catch (err) {
-        unlink(file.path, () => {});
         return res.status(400).send(`Error Occured: ${err}`)
-    } finally {
-        try { await doc.delete() } catch (err) {};
     }
+    
     try {
-        let data: DBItem = {
-            timestamp: Timestamp.now()
-        }
-        await doc.set(data);
+        await doc.set({timestamp: Timestamp.now()});
     } catch(err) {
         return res.status(400).send(`Couldn't add item to data base: ${err}`)
     }
 
+    // move the files in the image folder
+    try {
+        renameSync(file.path, imgPath);
+    } catch (err) {
+        console.log(err);
+    }
+
     if (await indexHandler.indexExists()) {
         // update the index
-        indexHandler.addDataPoint(
-            file.path,
+        await indexHandler.addDataPoint(
+            imgPath,
             doc.id
-        ).finally(() => {
-            // we need to delete the file here so we use it to update the index
-            if (file) { unlink(file.path, () => {}); }
-        })
-    } else {
-        // we need to delete the file here so we use it to update the index
-        unlink(file.path, () => {});
+        )
     }
 
     res.send({

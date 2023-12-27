@@ -3,6 +3,8 @@
 <h1>Application du collectionneur</h1>
 <p>Trouver les doublons dans votre collections. Ajouter une image a partir de la source desire et faite une rechercher pour trouver les items similaires.</p>
 
+<p>Votre collection compte actuellement <span id="itemcount"><%-nbitems%></span> items</p>
+
 <h3>Item ajoute recemment</h3>
 
 <div id="recentlyadded" style="padding-bottom: 40px;"></div>
@@ -42,7 +44,7 @@
         > Rechercher des items similaires
         </button>
         <div id="imageSearchResult" style="padding-top: 20px; padding-bottom: 20px;">
-            <div id="imageSearchBar" style="margin: auto; visibility: hidden;" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
+            <div id="imageSearchBar" style="margin: auto; display: none;" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
         </div>
     </div>
 

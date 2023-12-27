@@ -208,6 +208,10 @@ class Collectionneur {
                                 this.clearPhoto();
                                 dialog.close();
                                 addNewImageElement(data.url, null, true);
+                                // increment the number of items by one.
+                                let span = getElemById<HTMLSpanElement>("itemcount");
+                                span.innerText = (Number(span.innerText) + 1).toString();
+                                this.clearSimilarImages();
                             }
                             dialog.showModal();
                         },
@@ -224,13 +228,9 @@ class Collectionneur {
             if (!elem) {
                 throw new Error("Invalid element")
             }
-            $("#imageSearchBar").css("visibility", "visible");
-            for (let node of elem.find("img")) {
-                node.remove();
-            }
-            for (let node of elem.find("p")) {
-                node.remove();
-            }
+            $("#imageSearchBar").show();
+            this.clearSimilarImages();
+
             this.similarImage()
                 .then((res) => {
                     for (let img of res.results) {
@@ -245,10 +245,20 @@ class Collectionneur {
                 })
                 .finally(() => {
                     // remove loading
-                    $("#imageSearchBar").css("visibility", "hidden");
+                    $("#imageSearchBar").hide();
                 });
         })
 
+    }
+
+    clearSimilarImages() {
+        let elem = $("#imageSearchResult");
+        for (let node of elem.find("img")) {
+            node.remove();
+        }
+        for (let node of elem.find("p")) {
+            node.remove();
+        }
     }
 
     imgReceived(image: ImageBitmap) {
