@@ -354,7 +354,7 @@ function uninitAddNewItem() {
     $("#addnewitem").hide();
 }
 
-function fetchIndexWithInterval() {
+function fetchIndexWithInterval(time: number = 60_000) {
     if (fetchIntervalNumber !== null) {
         return
     };
@@ -363,8 +363,7 @@ function fetchIndexWithInterval() {
         console.log("fetching index status..")
         fetchIndexStatus()
     },
-    // check at each minute
-    1000  * 60
+    time
     ) as any;
 }
 
@@ -468,8 +467,8 @@ function updateState(data: {status: string}) {
     // handle operation first
     if (data.status === "createIndexOperation" || data.status === "createEndPointOpreation") {
         createIndexInProgress();
-        // fetch status if not already fetching
-        fetchIndexWithInterval();
+        // fetch status if not already fetching fetch faster for create index
+        fetchIndexWithInterval(30_000);
         return;
     }
 
@@ -510,7 +509,7 @@ function updateState(data: {status: string}) {
             (btn.get(0) as HTMLElement).onclick = () => {
                 btn.hide();
                 createIndexInProgress();
-                fetchIndexWithInterval();
+                fetchIndexWithInterval(30_000);
                 $.ajax({
                     type: "GET",
                     url: "/createindex",

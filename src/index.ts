@@ -10,7 +10,8 @@ import { Storage } from "@google-cloud/storage";
 import { Firestore, Timestamp } from "@google-cloud/firestore";
 import { FirestoreStore } from '@google-cloud/connect-firestore';
 
-import { unlink } from 'fs';
+import { existsSync, mkdirSync, unlink } from 'fs';
+import * as path from "path";
 
 import { IndexHandler, AiInfoErrType } from './ai_index';
 
@@ -123,7 +124,6 @@ const multerStorage = multer.diskStorage({
         let splitted = file.mimetype.split('/');
         if (splitted[0] === "image") {
             const imageUUID = crypto.randomUUID();
-            // let ext = splitted[1];
             cb(null, `${imageUUID}.${splitted[1]}`);
         }
         else {
@@ -143,13 +143,61 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Set up passport and session handling.
 app.use(passport.authenticate('session'));
 
+function getIp(req: express.Request): string | null {
+    if (req.ip) {
+        let ips = req.ip.split(":")
+        return ips[ips.length - 1];
+    }
+    return null
+}
+
+async function getConnectionIp(req: express.Request)  {
+    let ip = getIp(req);
+    if (ip) {
+        let ipcol = await db.collection("connections").where("ip", "==", ip).limit(1).get();
+        if (ipcol.docs && ipcol.docs.length > 0) {
+            return ipcol.docs[0]
+        }
+    }
+    return null;
+};
+
 
 app.get('/', async (req: express.Request, res: express.Response) => {
+    let connData = await getConnectionIp(req);
+    if (connData && connData.data().num_try >= 5) {
+        return res.status(401).send("Unauthorized.");
+    } 
     if (req.user && req.isAuthenticated()) {
         return res.render('pages/index');
     }
     return res.render("pages/login");
 });
+
+
+app.get('/itemimage/:imagefile', async (req: express.Request, res: express.Response) => {
+    let user = req.user as User;
+    if (user === undefined || req.isUnauthenticated()) {
+        return res.status(401).send("unauthorized")
+    }
+    
+    // check if the file already exists in the cache folder
+    let imagepath = path.resolve(path.join("images", req.params.imagefile));
+    try {
+        if (!existsSync(imagepath)) {
+            // download the file from the bucket
+            await bucket.file(req.params.imagefile).download({
+                decompress: true,
+                destination: imagepath
+            });
+        }
+    } catch (err) {
+        console.log("Error getting image: ", err);
+        return res.status(400).send();
+    }
+    
+    res.sendFile(imagepath);
+})
 
 
 app.get('/indexstatus', async (req: express.Request, res: express.Response) => {
@@ -258,18 +306,28 @@ app.get('/indexstatus', async (req: express.Request, res: express.Response) => {
 });
 
 
-app.post(
-    '/login',
-    passport.authenticate(
-        'local',
-        {
-            failureRedirect: '/',
-        }
-    ),
-    (req: express.Request, res: express.Response) => {
-        res.redirect('/');
+app.post('/login', async (req: express.Request, res: express.Response, next) => {
+    let connData = await getConnectionIp(req);
+    let num_try = 0;
+    if (connData) {
+        num_try = connData.data().num_try;
     }
-);
+    num_try += 1;
+    let data =  {
+        num_try: num_try,
+        host: req.hostname,
+        ip: getIp(req)
+    }
+    if (connData) {
+        await db.doc(`connections/${connData.id}`).update(data);
+    } else {
+        await db.collection("connections").doc().set(data);
+    }
+    if (num_try >= 5) {
+        return res.status(401).send("Unauthorized.");
+    }
+    passport.authenticate('local', {failureRedirect: '/', successRedirect: '/'})(req, res, next);
+});
 
 
 app.post('/item/create', upload.single('image'), async (req: express.Request, res: express.Response) => {
@@ -290,7 +348,6 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
     try {
         let destination = doc.id + '.' + file.filename.split('.')[1];
         let uploadRest = await bucket.upload(file.path, {destination: destination});
-        url = (uploadRest[1] as any).mediaLink;
     } catch (err) {
         unlink(file.path, () => {});
         return res.status(400).send(`Error Occured: ${err}`)
@@ -299,8 +356,7 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
     }
     try {
         let data: DBItem = {
-            timestamp: Timestamp.now(),
-            url: url
+            timestamp: Timestamp.now()
         }
         await doc.set(data);
     } catch(err) {
@@ -322,7 +378,7 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
     }
 
     res.send({
-        url: url
+        url: `/itemimage/${doc.id}.png`
     })
 });
 
@@ -342,11 +398,9 @@ app.post('/item/similarimage', upload.single('image'), async (req: express.Reque
     try {
         let result = await indexHandler.findSimilarLocal(file.path)
         let urls: {url: string, distance: number}[] = [];
-        let collection = db.doc(`Users/${user.id}`).collection("items");
         for (let r of result) {
-            let doc = await collection.doc(r.id).get();
             urls.push({
-                url: (doc.data() as any).url,
+                url: `/itemimage/${r.id}.png`,
                 distance: r.distance
             });
         }
@@ -374,13 +428,12 @@ app.get('/items/read', async (req: express.Request, res: express.Response) => {
         }
         let user = adminUser.docs[0].data();
         let result = await db.doc(`Users/${user.id}`).collection("items")
-            .select("url")
             .orderBy("timestamp", "desc")
             .limit(20)
             .get();
         let urls: string[] = [];
-        for (let user of result.docs) {
-            urls.push(user.data().url);
+        for (let item of result.docs) {
+            urls.push(`/itemimage/${item.id}.png`);
         }
         return res.status(200).send({ thumbnails: urls });
     } catch (err) {
@@ -456,8 +509,13 @@ app.get('/deployindex', async (req: express.Request, res: express.Response) => {
 
 
 indexHandler
-    .startVectorizerProxy()
+    .startVectorizer()
     .then(() => {
+        // create image folder
+        let folder = path.resolve("./images");
+        if (!existsSync(folder)) {
+            mkdirSync(folder);
+        }
         const port = parseInt(process.env.PORT || "0") || 8080;
         app.listen(port, () => {
             console.log(`Listening on port ${port}`);
