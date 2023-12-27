@@ -67,10 +67,6 @@ resource "google_project_service" "cloudbuild" {
   service = "cloudbuild.googleapis.com"
 }
 
-resource "google_project_service" "compute" {
-  service = "compute.googleapis.com"
-}
-
 resource "google_project_service" "run" {
   service = "run.googleapis.com"
 }
@@ -98,11 +94,11 @@ resource "google_service_account" "web-app" {
 
 
 // set all access for now, juste for simplicity
-resource "google_project_iam_member" "web-app-owner" {
-  project = data.google_project.project.project_id
-  role    = "roles/owner"
-  member  = "serviceAccount:${google_service_account.web-app.email}"
-}
+// resource "google_project_iam_member" "web-app-owner" {
+//   project = data.google_project.project.project_id
+//   role    = "roles/owner"
+//   member  = "serviceAccount:${google_service_account.web-app.email}"
+// }
 
 // accesss for the vectorizer to update index.
 // https://cloud.google.com/vertex-ai/docs/general/access-control?hl=ja
@@ -142,7 +138,7 @@ resource "google_artifact_registry_repository" "web_app" {
 
  resource "google_firestore_database" "firestore_db" {
   name               = "collector"
-  location_id        = "northamerica-northeast1"
+  location_id        = var.region
   type               = "FIRESTORE_NATIVE"
   
  }
@@ -156,7 +152,7 @@ resource "google_artifact_registry_repository" "web_app" {
 
 resource "google_storage_bucket" "bucket" {
   name                        = "${data.google_project.project.project_id}-collector"
-  location                    = "northamerica-northeast1"
+  location                    = var.region
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true
 }

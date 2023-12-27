@@ -164,10 +164,6 @@ async function getConnectionIp(req: express.Request)  {
 
 
 app.get('/', async (req: express.Request, res: express.Response) => {
-    let connData = await getConnectionIp(req);
-    if (connData && connData.data().num_try >= 5) {
-        return res.status(401).send("Unauthorized.");
-    } 
     if (req.user && req.isAuthenticated()) {
         return res.render('pages/index');
     }
@@ -312,21 +308,40 @@ app.post('/login', async (req: express.Request, res: express.Response, next) => 
     if (connData) {
         num_try = connData.data().num_try;
     }
+
+    // the user has tried more than five time reject the requests.
+    if (num_try >= 5) {
+        return res.status(401).send("Unauthorized.");
+    }
+
+    // increase num try
     num_try += 1;
     let data =  {
         num_try: num_try,
         host: req.hostname,
         ip: getIp(req)
     }
+    let doc;
     if (connData) {
-        await db.doc(`connections/${connData.id}`).update(data);
+        doc = db.doc(`connections/${connData.id}`);
+        await doc.update(data);
     } else {
-        await db.collection("connections").doc().set(data);
+        doc = db.collection("connections").doc();
+        doc.set(data);
     }
-    if (num_try >= 5) {
-        return res.status(401).send("Unauthorized.");
+    res.locals.docid = doc.id;
+
+    next();
+},
+passport.authenticate('local', {failureRedirect: "/"}), 
+
+async (req: express.Request, res: express.Response, next) => {
+    try {
+        await db.doc(`connections/${res.locals.docid}`).delete();
+    } catch (err) {
+        console.log(err);
     }
-    passport.authenticate('local', {failureRedirect: '/', successRedirect: '/'})(req, res, next);
+    return res.redirect('/');
 });
 
 
