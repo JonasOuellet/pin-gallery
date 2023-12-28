@@ -525,13 +525,13 @@ function updateState(data: {status: string}) {
             (btn.get(0) as HTMLElement).onclick = () => {
                 btn.hide();
                 createIndexInProgress();
-                fetchIndexWithInterval(30_000);
                 $.ajax({
                     type: "GET",
                     url: "/createindex",
                     dataType: 'json',
                     success: (data) => {
                         // do nothing for now already in progress
+                        fetchIndexWithInterval(30_000);
                         console.log(data);
                     },
                     error: (data) => {
