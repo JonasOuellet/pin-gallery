@@ -15,7 +15,7 @@ import * as path from "path";
 
 import { IndexHandler, AiInfoErrType } from './ai_index';
 
-import { DBItem, User, IndexStatus } from './types';
+import { User, IndexStatus } from './types';
 
 export const app: express.Express = express();
 

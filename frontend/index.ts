@@ -210,8 +210,13 @@ class Collectionneur {
                                 addNewImageElement(data.url, null, true);
                                 // increment the number of items by one.
                                 let span = getElemById<HTMLSpanElement>("itemcount");
-                                span.innerText = (Number(span.innerText) + 1).toString();
+                                let newCount = Number(span.innerText) + 1;
+                                span.innerText = newCount.toString();
                                 this.clearSimilarImages();
+
+                                if (newCount <= 10) {
+                                    fetchIndexStatus();
+                                }
                             }
                             dialog.showModal();
                         },
@@ -397,6 +402,7 @@ function deployInProgress() {
 
 
 function indexValid() {
+    $("#index_search").show();
     $("#indexstatus").text("L'index est deploye est pret a etre utilise.  Vous pouvez annuler le deploiment lorsque vous n'avez plus besoin de l'index pour economiser des frais d'execution.");
     let btn = $("#indexactionundeploy");
     btn.show();
@@ -582,7 +588,8 @@ function addNewImageElement(url: string, elem: HTMLElement | null, insertAndRemo
     .attr('src', url)
     .attr('style', "padding: 10px; max-width: 64px; max-height: 64px");
     if (insertAndRemoveLast) {
-        if (elem.lastElementChild) {
+        // 20 is the number of image that are displayed
+        if (elem.lastElementChild && elem.children.length >= 20) {
             elem.lastElementChild.remove();
         }
         if (elem.firstElementChild) {
@@ -591,6 +598,9 @@ function addNewImageElement(url: string, elem: HTMLElement | null, insertAndRemo
         }
     }
     elem.appendChild(thumbnailImage.get(0) as HTMLElement);
+
+    // make sure to show the div
+    (elem.parentNode as any).style.display = null;
 }
 
 

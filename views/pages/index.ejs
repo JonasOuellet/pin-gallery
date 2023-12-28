@@ -5,9 +5,11 @@
 
 <p>Votre collection compte actuellement <span id="itemcount"><%-nbitems%></span> items</p>
 
-<h3>Item ajoute recemment</h3>
+<div <% if (nbitems == 0) { %> style="display: none;" <% } %>>
+    <h3>Item ajoute recemment</h3>
+    <div id="recentlyadded"></div>
+</div>
 
-<div id="recentlyadded" style="padding-bottom: 40px;"></div>
 
 <h3>Status de l'index</h3>
 <div style="padding-bottom: 40px;">
@@ -41,6 +43,7 @@
     <div style="text-align: center; margin-top: 20px;">
         <button id="index_search"
             class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
+            style="display: none;"
         > Rechercher des items similaires
         </button>
         <div id="imageSearchResult" style="padding-top: 20px; padding-bottom: 20px;">
