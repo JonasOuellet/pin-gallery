@@ -1,12 +1,35 @@
-# Pin Gallery
+# Collector App
 
+## How to setup project
 
-## Init sql db
-
+1. Replace the project and region in `console/setenv.sh`
+2. Apply the variable to the console with (Don't forget the '.' before)
+```bash
+. console/setenv.sh
 ```
-psql -U prostgres collectionneurs
-\i create_db.sql
+3. Validate terraform resources.
+```bash
+cd terraform
+terraform init
+TF_VAR_project_id="$PROJECT_ID" TF_VAR_region="$REGION" terraform plan
 ```
+4. Apply terraform resources.
+```bash
+TF_VAR_project_id="$PROJECT_ID" TF_VAR_region="$REGION" terraform apply -auto-approve
+```
+5. Activate any api that need to be activated.  Rerun step 4
+6. go back to root `cd ..`
+7. Set the admin password with `node console/set_password.mjs`
+8. Setup npm and build the project.
+```bash
+npm install
+npm run build
+```
+9. finally deploy the app
+```bash
+console/deploy.sh
+```
+
 
 ## Trouver des images semblable
 
@@ -30,16 +53,3 @@ Cout de vertex AI: [cost](https://cloud.google.com/vertex-ai/pricing?hl=fr#match
 ## Cloud Resource Manager API
 Need to activate cloud resource manager api
 
-
-mettre le bucket public:
-... -> Modifier l'acces
-ajouter un compte principal all user, lecture des objects.
-
-
-if fire store stop working:
-
-```
-firebase login --reauth
-
-gcloud auth application-default login
-```
