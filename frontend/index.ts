@@ -189,7 +189,7 @@ class Collectionneur {
             }
         })
 
-        $("#addNewItem").on("click", (event) => {
+        $("#addnewitem").on("click", (event) => {
             // https://stackoverflow.com/questions/49826266/nodejs-cannot-upload-file-using-multer-via-ajax
            this.getImageFile()
                 .then((image) => {
@@ -202,23 +202,49 @@ class Collectionneur {
                         processData: false,
                         contentType: false,
                         success: (data) => {
+                            let span = getElemById<HTMLSpanElement>("itemcount");
+                            let newCount = Number(span.innerText) + 1;
+                            span.innerText = newCount.toString();
+
                             let dialog = document.querySelector("#itemaddeddialog") as HTMLDialogElement;
                             (dialog.querySelector("img") as HTMLImageElement).src = data.url;
-                            (dialog.querySelector("#imgdialogok") as HTMLButtonElement).onclick = () => {
-                                this.clearPhoto();
-                                dialog.close();
-                                addNewImageElement(data.url, null, true);
-                                // increment the number of items by one.
-                                let span = getElemById<HTMLSpanElement>("itemcount");
-                                let newCount = Number(span.innerText) + 1;
-                                span.innerText = newCount.toString();
-                                this.clearSimilarImages();
+                            let btn = dialog.querySelector("#imgdialogok") as HTMLButtonElement;
+                            let btn2 = dialog.querySelector("#imgdialog2") as HTMLButtonElement;
+                            let p = dialog.querySelector("p") as HTMLParagraphElement;
 
-                                if (newCount <= 10) {
-                                    fetchIndexStatus();
+                            this.clearPhoto();
+                            this.clearSimilarImages();
+                            addNewImageElement(data.url, null, true);
+
+                            if (newCount >= 10) {
+                                // show the dialog that inform user that he can create the index.
+                                btn.innerText = "Creer maintenant";
+                                (btn2.style as any).display = null;
+                                btn2.innerText = "Creer plus tard"
+                                p.innerText = "Nouvelle item ajoute avec succes.  Il y assez d'item pour creer l'index.  Voulez vous creer l'index maintenant?"
+                                
+                                btn.onclick = () => {
+                                    createIndex();
+                                    dialog.close();
                                 }
+                                btn2.onclick = () => {
+                                    dialog.close();
+                                };
+
+                                dialog.showModal();
+
+                            } else {
+                                // show the dialog that inform the user that the elem has been added.
+                                fetchIndexStatus();
+                                btn.innerText = "Ok!";
+                                btn2.style.display = "none";
+                                p.innerText = "Nouvelle item ajoute avec succes.";
+
+                                btn.onclick = () => {
+                                    dialog.close();
+                                }
+                                dialog.showModal();
                             }
-                            dialog.showModal();
                         },
                         error: (xhr, status, error) => {
                             showDialog("Erreur", xhr.responseText);
@@ -361,12 +387,12 @@ function initAddNewItem() {
     }
     collectionneur.clearPhoto();
     // show the foirm
-    $("#addnewitem").show();
+    $("#addnewitemcard").show();
 }
 
 function uninitAddNewItem() {
     // simply hide the form
-    $("#addnewitem").hide();
+    $("#addnewitemcard").hide();
 }
 
 function fetchIndexWithInterval(time: number = 60_000) {
@@ -479,6 +505,26 @@ function indexNotDeployed() {
 };
 
 
+function createIndex() {
+    uninitAddNewItem();
+    createIndexInProgress();
+    $.ajax({
+        type: "GET",
+        url: "/createindex",
+        dataType: 'json',
+        success: (data) => {
+            // do nothing for now already in progress
+            fetchIndexWithInterval(30_000);
+        },
+        error: (data) => {
+            console.log(data);
+            $("#indexstatus").text(`Une erreur est survenu: ${data.responseText}`);
+            $("#indexstatusbar").hide();
+        }
+    });
+}
+
+
 function updateState(data: {status: string}) {
     // handle operation first
     if (data.status === "createIndexOperation" || data.status === "createEndPointOpreation") {
@@ -524,22 +570,7 @@ function updateState(data: {status: string}) {
             btn.show();
             (btn.get(0) as HTMLElement).onclick = () => {
                 btn.hide();
-                createIndexInProgress();
-                $.ajax({
-                    type: "GET",
-                    url: "/createindex",
-                    dataType: 'json',
-                    success: (data) => {
-                        // do nothing for now already in progress
-                        fetchIndexWithInterval(30_000);
-                        console.log(data);
-                    },
-                    error: (data) => {
-                        console.log(data);
-                        $("#indexstatus").text(`Une erreur est survenu: ${data.responseText}`);
-                        $("#indexstatusbar").hide();
-                    }
-                });
+                createIndex();
             }
         }
     }
@@ -571,9 +602,9 @@ function fetchIndexStatus() {
 
 function showDialog(title: string, content: string) {
     let dialog = document.querySelector("#simplemsgdialog") as HTMLDialogElement;
-    (dialog.querySelector("#dialogtitle") as HTMLTitleElement).innerText = title;
-    (dialog.querySelector("#dialogcontent") as HTMLParagraphElement).innerText = content;
-    (dialog.querySelector("#dialogok") as HTMLButtonElement).onclick = () => {
+    (dialog.querySelector("h2") as HTMLHeadElement).innerText = title;
+    (dialog.querySelector("p") as HTMLParagraphElement).innerText = content;
+    (dialog.querySelector("button") as HTMLButtonElement).onclick = () => {
         dialog.close();
     }
     dialog.showModal();

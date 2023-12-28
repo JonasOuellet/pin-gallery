@@ -23,4 +23,5 @@ gcloud run deploy \
   --set-env-vars "PROJECT_ID=$PROJECT_ID" \
   --set-env-vars "REGION=$REGION" \
   --cpu 4 \
-  --memory 2Gi
+  --memory 2Gi \
+  --max-instances 1

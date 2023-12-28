@@ -22,7 +22,7 @@
     </div>
 </div>
 
-<div id="addnewitem" class="demo-card-wide mdl-card mdl-shadow--2dp" style="width: 60%; min-width: 800px; margin-top: 60px; margin: auto; display: none;">
+<div id="addnewitemcard" class="demo-card-wide mdl-card mdl-shadow--2dp" style="width: 60%; min-width: 800px; margin-top: 60px; margin: auto; display: none;">
     <div class="mdl-card__title">
         <h2 class="mdl-card__title-text">Ajout d'un nouvel item</h2>
     </div>
@@ -52,47 +52,41 @@
     </div>
 
     <div class="mdl-card__actions mdl-card--border" style="text-align: center;">
-        <input class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" id="addNewItem" type="button" value="Ajouter">
+        <input class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" id="addnewitem" type="button" value="Ajouter">
     </div>
 </div>
 
 <dialog id="simplemsgdialog" class="mdl-dialog" style="width: 30%;">
-    <h2 id="dialogtitle" class="mdl-dialog__title">Operation Complete</h2>
+    <h2 class="mdl-dialog__title">Operation Complete</h2>
     <div class="mdl-dialog__content">
-        <p id="dialogcontent">
-            Deploiement Completer
-        </p>
-      </div>
-      <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
-        <button id="dialogok" type="button" class="mdl-button">Ok!</button>
-      </div>
+        <p>Deploiement Completer</p>
+    </div>
+    <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
+        <button type="button" class="mdl-button">Ok!</button>
+    </div>
 </dialog>
 
 <dialog id="itemaddeddialog" class="mdl-dialog" style="width: 30%;">
     <h2 id="dialogtitle" class="mdl-dialog__title">Succes</h2>
     <div class="mdl-dialog__content">
-        <p id="dialogcontent">
-            Nouvelle item ajoute avec succes.
-        </p>
+        <p></p>
         <img style="max-width: 128px; max-height: 128px; margin: auto; display: block;">
-      </div>
-      <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
-        <button id="imgdialogok" type="button" class="mdl-button">Ok!</button>
-      </div>
+    </div>
+    <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
+        <button id="imgdialogok" type="button" class="mdl-button"></button>
+        <button id="imgdialog2" type="button" class="mdl-button"></button>
+    </div>
 </dialog>
 
 <dialog id="deploydialog" class="mdl-dialog" style="width: 30%;">
-    <h2 id="dialogtitle" class="mdl-dialog__title">Index cree</h2>
+    <h2 class="mdl-dialog__title">Index cree</h2>
     <div class="mdl-dialog__content">
-        <p id="dialogcontent">
-            Vous pouvez maintenant deployer l'index.
-        </p>
-        <img style="max-width: 128px; max-height: 128px; margin: auto; display: block;">
-        </div>
-        <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
-            <button id="deploynow" type="button" class="mdl-button">Deployer maintenant</button>
-            <button id="deploylater" type="button" class="mdl-button">Deployer plus tard</button>
-      </div>
+        <p>Vous pouvez maintenant deployer l'index.</p>
+    </div>
+    <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
+        <button id="deploynow" type="button" class="mdl-button">Deployer maintenant</button>
+        <button id="deploylater" type="button" class="mdl-button">Deployer plus tard</button>
+    </div>
 </dialog>
 
 <script src="/js/index.js"></script>
