@@ -271,79 +271,7 @@ class Collectionneur {
                         let imgElem = $('<img />');
                         imgElem.attr('src', img.url);
                         imgElem.attr('style', "padding: 10px; max-width: 15%")
-                        imgElem.on('contextmenu', (event) => {
-                            // add option to delete the item
-                            let menu = $("#image_menu");
-                            (menu.get(0) as any).style.display = null;
-                            console.log(menu.children());
-                            menu.css("transition-delay", "0.12s");
-                            let width = menu.width();
-                            let height = menu.height();
-                            let parentdiv = menu.parent();
-                            parentdiv.addClass("is-visible");
-                            parentdiv.css("left", `${event.pageX}px`);
-                            parentdiv.css("top", `${event.pageY}px`);
-                            let contour = parentdiv.children("div");
-                            contour.css("width", `${width}px`);
-                            contour.css("height", `${height}px`);
-                            menu.css("clip", `rect(0px, ${width}px, ${height}px, 0px)`);
-                            
-                            let closeMenu = () => {
-                                parentdiv.removeClass("is-visible");
-                                (menu.get(0) as any).style.clip = null;
-                                document.removeEventListener("click", documentClose);
-                            };
-
-                            let documentClose = () => {
-                                closeMenu();
-                            };
-                            
-                            document.addEventListener("click", documentClose);
-                            
-                            let closeAction = menu.children()[0];
-                            closeAction.addEventListener("click", (ev) => {
-                                closeMenu();
-
-                                let imageID = (img.url.split("/").pop() as string).split('.')[0];
-
-                                // popup the dialog
-                                let dialog = $("#deletedialog");
-                                let dialogElem = dialog.get(0) as HTMLDialogElement;
-                                let dialogImg = $("img", dialog).get(0) as HTMLImageElement;
-                                dialogImg.src = img.url;
-                                let [okbtn, cancelbtn] = $("button", dialog);
-                                cancelbtn.onclick = () => {dialogElem.close()};
-                                okbtn.onclick = () => {
-                                    $.ajax({
-                                        url: `/item/delete/${imageID}`,
-                                        method: "GET",
-                                        processData: false,
-                                        contentType: false,
-                                        success: (data) => {
-                                            dialogElem.close();
-                                            dialogImg.src = "";
-                                            console.log(data);
-                                            // remove the element from the list of 5
-                                            imgElem.remove();
-                                            updateRecentlyAdded();
-                                            updateCount();
-                                        },
-                                        error: (xhr, status, error) => {
-                                            dialogElem.close();
-                                            dialogImg.src = "";
-                                            showDialog("Error Occured", xhr.responseText);
-                                        }
-                                    });
-                                }
-
-                                dialogElem.showModal();
-                                ev.preventDefault();
-                                ev.stopPropagation();
-                                ev.stopImmediatePropagation();
-                            })
-                            event.preventDefault();
-                        })
-
+                        imgElem.on('contextmenu', this.removeContextMenu);
                         elem.append(imgElem);
                     }
                 })
@@ -356,6 +284,77 @@ class Collectionneur {
                 });
         })
 
+    }
+
+    removeContextMenu(event: JQuery.ContextMenuEvent) {
+        let imgElement = event.target as HTMLImageElement;
+
+        let menu = $("#image_menu");
+        (menu.get(0) as any).style.display = null;
+        menu.css("transition-delay", "0.12s");
+        let width = menu.width();
+        let height = menu.height();
+        let parentdiv = menu.parent();
+        parentdiv.addClass("is-visible");
+        parentdiv.css("left", `${event.pageX}px`);
+        parentdiv.css("top", `${event.pageY}px`);
+        let contour = parentdiv.children("div");
+        contour.css("width", `${width}px`);
+        contour.css("height", `${height}px`);
+        menu.css("clip", `rect(0px, ${width}px, ${height}px, 0px)`);
+
+        let closeMenu = () => {
+            parentdiv.removeClass("is-visible");
+            (menu.get(0) as any).style.clip = null;
+            document.removeEventListener("click", documentCloseMenu);
+        };
+
+        let documentCloseMenu = () => {
+            closeMenu();
+        };
+
+        document.addEventListener("click", documentCloseMenu);
+
+        let deleteAction = menu.children()[0];
+        deleteAction.onclick = (ev) => {
+            closeMenu();
+            let imageID = (imgElement.src.split("/").pop() as string).split('.')[0];
+
+            // popup the dialog
+            let dialog = $("#deletedialog");
+            let dialogElem = dialog.get(0) as HTMLDialogElement;
+            let dialogImg = $("img", dialog).get(0) as HTMLImageElement;
+            dialogImg.src =  imgElement.src;
+            let [okbtn, cancelbtn] = $("button", dialog);
+            cancelbtn.onclick = () => {dialogElem.close()};
+            okbtn.onclick = () => {
+                $.ajax({
+                    url: `/item/delete/${imageID}`,
+                    method: "GET",
+                    processData: false,
+                    contentType: false,
+                    success: (data) => {
+                        dialogElem.close();
+                        dialogImg.src = "";
+                        // remove the element from the list of 5
+                        imgElement.remove();
+                        updateRecentlyAdded();
+                        updateCount();
+                    },
+                    error: (xhr, status, error) => {
+                        dialogElem.close();
+                        dialogImg.src = "";
+                        showDialog("Error Occured", xhr.responseText);
+                    }
+                });
+            }
+
+            dialogElem.showModal();
+            ev.preventDefault();
+            ev.stopPropagation();
+            ev.stopImmediatePropagation();
+        }
+        event.preventDefault();
     }
 
     clearSimilarImages() {
@@ -618,7 +617,6 @@ function updateState(data: {status: string}) {
     }
 
     if (data.status === "IndexIsBeingUndeployed") {
-        console.log("index is being undeployed")
         undeployInProgess();
         // fetch status if not already fetching
         fetchIndexWithInterval();
@@ -725,7 +723,7 @@ function updateRecentlyAdded() {
                 }
             },
             error: (data) => {
-                console.log("Error: ", data);
+                console.error(data);
             }
         })
     })
