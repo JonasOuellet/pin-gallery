@@ -509,4 +509,19 @@ export class IndexHandler {
         }
         return false;
     }
+
+    async removeItem(id: string): Promise<void> {
+        const [aiInfo, err] = await this.getAiInfo();
+        if (err) {
+            return Promise.reject(this.getErrorText(err));
+        }
+        if (aiInfo === null) {
+            return Promise.reject("Impossible de d'acceder a l'index pour le moment");
+        }
+
+        await this._indexClient.removeDatapoints({
+            index: aiInfo.indexId,
+            datapointIds: [id]
+        });
+    }
 }

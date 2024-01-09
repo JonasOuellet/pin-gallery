@@ -207,7 +207,10 @@ class Collectionneur {
                             span.innerText = newCount.toString();
 
                             let dialog = document.querySelector("#itemaddeddialog") as HTMLDialogElement;
-                            (dialog.querySelector("img") as HTMLImageElement).src = data.url;
+                            // clear old images
+                            let img = (dialog.querySelector("img") as HTMLImageElement);
+                            img.src = "";
+                            img.src = data.url;
                             let btn = dialog.querySelector("#imgdialogok") as HTMLButtonElement;
                             let btn2 = dialog.querySelector("#imgdialog2") as HTMLButtonElement;
                             let p = dialog.querySelector("p") as HTMLParagraphElement;
@@ -265,10 +268,83 @@ class Collectionneur {
             this.similarImage()
                 .then((res) => {
                     for (let img of res.results) {
-                        elem.append($('<img />')
-                            .attr('src', img.url)
-                            .attr('style', "padding: 10px; max-width: 15%")
-                        );
+                        let imgElem = $('<img />');
+                        imgElem.attr('src', img.url);
+                        imgElem.attr('style', "padding: 10px; max-width: 15%")
+                        imgElem.on('contextmenu', (event) => {
+                            // add option to delete the item
+                            let menu = $("#image_menu");
+                            (menu.get(0) as any).style.display = null;
+                            console.log(menu.children());
+                            menu.css("transition-delay", "0.12s");
+                            let width = menu.width();
+                            let height = menu.height();
+                            let parentdiv = menu.parent();
+                            parentdiv.addClass("is-visible");
+                            parentdiv.css("left", `${event.pageX}px`);
+                            parentdiv.css("top", `${event.pageY}px`);
+                            let contour = parentdiv.children("div");
+                            contour.css("width", `${width}px`);
+                            contour.css("height", `${height}px`);
+                            menu.css("clip", `rect(0px, ${width}px, ${height}px, 0px)`);
+                            
+                            let closeMenu = () => {
+                                parentdiv.removeClass("is-visible");
+                                (menu.get(0) as any).style.clip = null;
+                                document.removeEventListener("click", documentClose);
+                            };
+
+                            let documentClose = () => {
+                                closeMenu();
+                            };
+                            
+                            document.addEventListener("click", documentClose);
+                            
+                            let closeAction = menu.children()[0];
+                            closeAction.addEventListener("click", (ev) => {
+                                closeMenu();
+
+                                let imageID = (img.url.split("/").pop() as string).split('.')[0];
+
+                                // popup the dialog
+                                let dialog = $("#deletedialog");
+                                let dialogElem = dialog.get(0) as HTMLDialogElement;
+                                let dialogImg = $("img", dialog).get(0) as HTMLImageElement;
+                                dialogImg.src = img.url;
+                                let [okbtn, cancelbtn] = $("button", dialog);
+                                cancelbtn.onclick = () => {dialogElem.close()};
+                                okbtn.onclick = () => {
+                                    $.ajax({
+                                        url: `/item/delete/${imageID}`,
+                                        method: "GET",
+                                        processData: false,
+                                        contentType: false,
+                                        success: (data) => {
+                                            dialogElem.close();
+                                            dialogImg.src = "";
+                                            console.log(data);
+                                            // remove the element from the list of 5
+                                            imgElem.remove();
+                                            updateRecentlyAdded();
+                                            updateCount();
+                                        },
+                                        error: (xhr, status, error) => {
+                                            dialogElem.close();
+                                            dialogImg.src = "";
+                                            showDialog("Error Occured", xhr.responseText);
+                                        }
+                                    });
+                                }
+
+                                dialogElem.showModal();
+                                ev.preventDefault();
+                                ev.stopPropagation();
+                                ev.stopImmediatePropagation();
+                            })
+                            event.preventDefault();
+                        })
+
+                        elem.append(imgElem);
                     }
                 })
                 .catch((err) => {
@@ -527,7 +603,7 @@ function createIndex() {
 
 function updateState(data: {status: string}) {
     // handle operation first
-    if (data.status === "createIndexOperation" || data.status === "createEndPointOpreation") {
+    if (data.status === "IndexIsBeingCreated" || data.status === "EndpointIsBeingCreated") {
         createIndexInProgress();
         // fetch status if not already fetching fetch faster for create index
         fetchIndexWithInterval(30_000);
@@ -635,8 +711,10 @@ function addNewImageElement(url: string, elem: HTMLElement | null, insertAndRemo
 }
 
 
-$(() => {
-    $("#recentlyadded").each((idx, elem) => {
+function updateRecentlyAdded() {
+    let recentlyAdded = $("#recentlyadded");
+    recentlyAdded.children().remove();
+    recentlyAdded.each((idx, elem) => {
         $.ajax({
             type: "GET",
             url: "/items/read",
@@ -651,6 +729,27 @@ $(() => {
             }
         })
     })
+}
 
-    fetchIndexStatus();       
+function updateCount() {
+    $.ajax({
+        type: "GET",
+        url: "/items/count",
+        dataType: "json",
+        success: (data) => {
+            console.log(data);
+            let span = getElemById<HTMLSpanElement>("itemcount");
+            let newCount = data.count;
+            span.innerText = newCount.toString(); 
+        },
+        error: (data) => {
+            console.error(data);
+        }
+    })
+}
+
+
+$(() => {
+    updateRecentlyAdded();
+    fetchIndexStatus();
 });

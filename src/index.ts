@@ -117,10 +117,10 @@ passport.deserializeUser((user, done) => {
 
 
 const multerStorage = multer.diskStorage({
-    destination: (req: express.Request, file: Express.Multer.File, cb) => {
+    destination: (req, file: Express.Multer.File, cb) => {
         cb(null, "./")
     },
-    filename: (req: express.Request, file: Express.Multer.File, cb) => {
+    filename: (req, file: Express.Multer.File, cb) => {
         let splitted = file.mimetype.split('/');
         if (splitted[0] === "image") {
             const imageUUID = crypto.randomUUID();
@@ -163,7 +163,7 @@ async function getConnectionIp(req: express.Request)  {
 };
 
 
-app.get('/', async (req: express.Request, res: express.Response) => {
+app.get('/', async (req, res) => {
     if (req.user && req.isAuthenticated()) {
         let data = await db.doc(`Users/${(req.user as any).id}`).collection("items").count().get();
         res.locals.nbitems = data.data().count;
@@ -173,7 +173,7 @@ app.get('/', async (req: express.Request, res: express.Response) => {
 });
 
 
-app.get('/itemimage/:imagefile', async (req: express.Request, res: express.Response) => {
+app.get('/itemimage/:imagefile', async (req, res) => {
     let user = req.user as User;
     if (user === undefined || req.isUnauthenticated()) {
         return res.status(401).send("unauthorized")
@@ -198,7 +198,7 @@ app.get('/itemimage/:imagefile', async (req: express.Request, res: express.Respo
 })
 
 
-app.get('/indexstatus', async (req: express.Request, res: express.Response) => {
+app.get('/indexstatus', async (req, res) => {
     let user = req.user as User;
     if (!req.user || req.isUnauthenticated()) {
         return res.status(401).send("Unautorized.")
@@ -304,7 +304,7 @@ app.get('/indexstatus', async (req: express.Request, res: express.Response) => {
 });
 
 
-app.post('/login', async (req: express.Request, res: express.Response, next) => {
+app.post('/login', async (req, res, next) => {
     let connData = await getConnectionIp(req);
     let num_try = 0;
     if (connData) {
@@ -337,7 +337,7 @@ app.post('/login', async (req: express.Request, res: express.Response, next) => 
 },
 passport.authenticate('local', {failureRedirect: "/"}), 
 
-async (req: express.Request, res: express.Response, next) => {
+async (req, res, next) => {
     try {
         await db.doc(`connections/${res.locals.docid}`).delete();
     } catch (err) {
@@ -347,7 +347,7 @@ async (req: express.Request, res: express.Response, next) => {
 });
 
 
-app.post('/item/create', upload.single('image'), async (req: express.Request, res: express.Response) => {
+app.post('/item/create', upload.single('image'), async (req, res) => {
     let user = req.user as User;
     if (user === undefined || req.isUnauthenticated()) {
         return res.status(401).send("unauthorized")
@@ -398,7 +398,49 @@ app.post('/item/create', upload.single('image'), async (req: express.Request, re
 });
 
 
-app.post('/item/similarimage', upload.single('image'), async (req: express.Request, res: express.Response) => {
+app.get('/item/delete/:id', async (req, res) => {
+    let user = req.user as User;
+    if (user === undefined || req.isUnauthenticated()) {
+        return res.status(401).send("unauthorized")
+    }
+    try {
+        await indexHandler.removeItem(req.params.id);
+    } catch (err) {
+        return res.status(400).send(err);
+    }
+    // remove it from the db
+    try {
+        await db.doc(`Users/${user.id}`).collection("items").doc(req.params.id).delete();
+    } catch (err) {
+        return res.status(400).send("Impossible de supprimer l'item de la base de donnee.")
+    }
+    
+    try {
+        await bucket.file(`${req.params.id}.png`).delete({ignoreNotFound: false});
+    } catch (err) {
+        return res.status(400).send("Impossible de supprimer l'item du stockage.")
+    }
+
+    return res.send("Item removed with success.")
+});
+
+
+app.get('/items/count', async (req, res) => {
+    let user = req.user as User;
+    if (user === undefined || req.isUnauthenticated()) {
+        return res.status(401).send("unauthorized")
+    }
+
+    try {
+        let count = await db.doc(`Users/${user.id}`).collection("items").count().get();
+        return res.send({"count": count.data().count});
+    } catch (err) {
+        return res.status(400).send(err);
+    }
+});
+
+
+app.post('/item/similarimage', upload.single('image'), async (req, res) => {
     let user = req.user as User;
     if (!user || req.isUnauthenticated()) {
         return res.status(400).send("Invalid user.");
@@ -433,7 +475,7 @@ app.post('/item/similarimage', upload.single('image'), async (req: express.Reque
 });
 
 
-app.get('/items/read', async (req: express.Request, res: express.Response) => {
+app.get('/items/read', async (req, res) => {
     try {
         let adminUser = await db.collection("Users")
             .where("username", "==", "Admin")
@@ -458,7 +500,7 @@ app.get('/items/read', async (req: express.Request, res: express.Response) => {
 });
 
 
-app.get('/createindex', async (req: express.Request, res: express.Response) => {
+app.get('/createindex', async (req, res) => {
     let user = req.user as User;
     if (user === undefined || req.isUnauthenticated()) {
         return res.status(401).send("Unautorised");
@@ -487,7 +529,7 @@ app.get('/createindex', async (req: express.Request, res: express.Response) => {
 })
 
 
-app.get('/undeployindex', async (req: express.Request, res: express.Response) => {
+app.get('/undeployindex', async (req, res) => {
     let user = req.user as User;
     if (user === undefined || req.isUnauthenticated()) {
         return res.status(401).send("Unautorised");
@@ -504,7 +546,7 @@ app.get('/undeployindex', async (req: express.Request, res: express.Response) =>
     return res.status(400).send("L'index est deja annule ou est en cours de deploiement.  Veuillez reessayer plus tard.");
 })
 
-app.get('/deployindex', async (req: express.Request, res: express.Response) => {
+app.get('/deployindex', async (req, res) => {
     let user = req.user as User;
     if (user === undefined || req.isUnauthenticated()) {
         return res.status(401).send("Unautorised");
