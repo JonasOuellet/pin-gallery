@@ -12,6 +12,9 @@ else
     echo "Generating image version $version"
 fi
 
+# make sure everything is built before deploying new version.
+npm run build
+
 gcloud builds submit --tag "$REGION-docker.pkg.dev/$PROJECT_ID/collector-web-app/web-app:v$version"
 
 gcloud run deploy \
