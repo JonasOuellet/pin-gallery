@@ -7,6 +7,12 @@ function getElemById<T>(id: string): T {
     return elem as T;
 }
 
+enum EditMode {
+    None,
+    Zoom,
+    Move
+}
+
 
 class Point2D{
     x: number;
@@ -63,10 +69,11 @@ class Collectionneur {
     image: ImageBitmap | null;
     imageScale: number = 1;
 
-    _isMoving: boolean = false;
+    _editMode: EditMode = EditMode.None;
     _initalPos: Point2D = Point2D.origin();
     imagePosition: Point2D = Point2D.origin();
     _initialImagePosition: Point2D = Point2D.origin();
+    _initialScale: number = 1;
 
     constructor() {
         this.width = 256;
@@ -104,48 +111,81 @@ class Collectionneur {
 
         }
 
-        if (this._isMoving) {
+        if (this._editMode != EditMode.None) {
             requestAnimationFrame((time) => this.drawImageAnimation());
         } 
     }
 
     beginMoving(event: MouseEvent) {
-        if (event.button === 0 && this.image){
-            // tell the browser we're handling this mouse event
-            // https://stackoverflow.com/questions/28284754/dragging-shapes-using-mouse-after-creating-them-with-html5-canvas
+        if (!this.image) {
+            return;
+        }
+        if (this._editMode != EditMode.None) {
+            return;
+        }
 
+        if (event.button === 0) {
             // set move cursor
             document.body.style.cursor = "move";
- 
-            this._initalPos = new Point2D(event.x, event.y);
-            this._initialImagePosition = new Point2D(this.imagePosition.x, this.imagePosition.y);
-            
-            event.preventDefault();
-            event.stopPropagation();
-            // start drawing the image
-            this._isMoving = true;
-            this.drawImageAnimation()
+            this._editMode = EditMode.Move;
         }
-     }
+        else if (event.button === 1) {
+            document.body.style.cursor = "zoom-in";
+            this._editMode = EditMode.Zoom;
+        }
+        else { 
+            return; 
+        }
+
+        this._initalPos = new Point2D(event.x, event.y);
+        this._initialImagePosition = new Point2D(this.imagePosition.x, this.imagePosition.y);
+        this._initialScale = this.imageScale;
+
+        event.preventDefault();
+        event.stopPropagation();
+        this.drawImageAnimation()
+        this.drawImageAnimation()
+    }
   
-     endMoving(event: MouseEvent) {
-        if (this._isMoving) {
+    endMoving(event: MouseEvent) {
+        if (
+            (event.button === 0 && this._editMode == EditMode.Move) ||
+            (event.button === 1 && this._editMode == EditMode.Zoom)
+        ) {
             document.body.style.cursor = "auto";
+            this._editMode = EditMode.None;
             event.preventDefault();
             event.stopPropagation();
-            this._isMoving = false;
         }
-     }
-  
+    }
+
     move(event: MouseEvent) {
-        if (this._isMoving) {
+        if (!this.image || this._editMode == EditMode.None) {
+            return;
+        }
+        if (this._editMode == EditMode.Move) {
             let relPos = new Point2D(event.x, event.y).sub(this._initalPos);
             relPos.x *= this.canvas.width / this.canvas.clientWidth;
             relPos.y *= this.canvas.height / this.canvas.clientHeight;
             this.imagePosition = this._initialImagePosition.add(relPos);
-            event.preventDefault();
-            event.stopPropagation();
         }
+        else if (this._editMode == EditMode.Zoom) {
+            let scaleValue = event.x - this._initalPos.x;
+            if (scaleValue < 0) {
+                document.body.style.cursor = "zoom-out";
+            } else {
+                document.body.style.cursor = "zoom-in";
+            }
+            this.imageScale = this._initialScale + scaleValue * 0.001;
+            let currentWidth = this.image.width * this._initialScale;
+            let currentHeight = this.image.height * this._initialScale;
+            this.imagePosition = this._initialImagePosition.add(new Point2D(
+                (currentWidth - (this.image.width * this.imageScale)) * 0.5,
+                (currentHeight - (this.image.height * this.imageScale)) * 0.5
+            ));
+        }
+        event.preventDefault();
+        event.stopPropagation();
     }
 
     init() {
@@ -173,21 +213,6 @@ class Collectionneur {
         this.canvas.addEventListener("mousedown", (event) => this.beginMoving(event));
         window.addEventListener("mouseup", (event) => this.endMoving(event));
         window.addEventListener("mousemove", (event) => this.move(event));
-        this.canvas.addEventListener("wheel", (event) => {
-            if (this.image) {
-                // scale from center
-                let currentWidth = this.image.width * this.imageScale;
-                let currentHeight = this.image.height * this.imageScale;
-                this.imageScale += -event.deltaY * 0.0005;
-                this.imagePosition = this.imagePosition.add(new Point2D(
-                    (currentWidth - (this.image.width * this.imageScale)) * 0.5,
-                    (currentHeight - (this.image.height * this.imageScale)) * 0.5
-                ));
-                this.drawImageAnimation();
-                event.stopPropagation();
-                event.preventDefault();
-            }
-        })
 
         $("#addnewitem").on("click", (event) => {
             // https://stackoverflow.com/questions/49826266/nodejs-cannot-upload-file-using-multer-via-ajax
