@@ -173,31 +173,6 @@ app.get('/', async (req, res) => {
 });
 
 
-app.get('/itemimage/:imagefile', async (req, res) => {
-    let user = req.user as User;
-    if (user === undefined || req.isUnauthenticated()) {
-        return res.status(401).send("unauthorized")
-    }
-    
-    // check if the file already exists in the cache folder
-    let imagepath = path.resolve(path.join("images", req.params.imagefile));
-    try {
-        if (!existsSync(imagepath)) {
-            // download the file from the bucket
-            await bucket.file(req.params.imagefile).download({
-                decompress: true,
-                destination: imagepath
-            });
-        }
-    } catch (err) {
-        console.log("Error getting image: ", err);
-        return res.status(400).send();
-    }
-    
-    res.sendFile(imagepath);
-})
-
-
 app.get('/indexstatus', async (req, res) => {
     let user = req.user as User;
     if (!req.user || req.isUnauthenticated()) {
@@ -363,38 +338,33 @@ app.post('/item/create', upload.single('image'), async (req, res) => {
         .doc();
 
     let ext = path.extname(file.filename);
-    let imgPath = path.resolve(path.join("images", doc.id + ext));
     let destination = doc.id + ext;
+
     try {
-        await bucket.upload(file.path, {destination: destination});
-    } catch (err) {
+        let [bucketFile] = await bucket.upload(file.path, {destination: destination});
+        await doc.set({timestamp: Timestamp.now()});
+        if (await indexHandler.indexExists()) {
+            // update the index
+            await indexHandler.addDataPoint(
+                file.path,
+                doc.id
+            )
+        }
+        res.send({url: bucketFile.publicUrl()});
+    } 
+    catch (err) {
+        unlink(file.path, () => {});
         return res.status(400).send(`Error Occured: ${err}`)
     }
+    finally {
+        // delete the files in the image folder
+        unlink(file.path, (err) => {
+            if (err) {
+                console.log(`Error occured deleting file: ${err}`)
+            }    
+        });    
+    }    
     
-    try {
-        await doc.set({timestamp: Timestamp.now()});
-    } catch(err) {
-        return res.status(400).send(`Couldn't add item to data base: ${err}`)
-    }
-
-    // move the files in the image folder
-    try {
-        renameSync(file.path, imgPath);
-    } catch (err) {
-        console.log(err);
-    }
-
-    if (await indexHandler.indexExists()) {
-        // update the index
-        await indexHandler.addDataPoint(
-            imgPath,
-            doc.id
-        )
-    }
-
-    res.send({
-        url: `/itemimage/${doc.id}.png`
-    })
 });
 
 
@@ -457,7 +427,7 @@ app.post('/item/similarimage', upload.single('image'), async (req, res) => {
         let urls: {url: string, distance: number}[] = [];
         for (let r of result) {
             urls.push({
-                url: `/itemimage/${r.id}.png`,
+                url: bucket.file(`${r.id}.png`).publicUrl(),
                 distance: r.distance
             });
         }
@@ -490,7 +460,7 @@ app.get('/items/read', async (req, res) => {
             .get();
         let urls: string[] = [];
         for (let item of result.docs) {
-            urls.push(`/itemimage/${item.id}.png`);
+            urls.push(bucket.file(`${item.id}.png`).publicUrl());
         }
         return res.status(200).send({ thumbnails: urls });
     } catch (err) {
@@ -568,11 +538,6 @@ app.get('/deployindex', async (req, res) => {
 indexHandler
     .startVectorizer()
     .then(() => {
-        // create image folder
-        let folder = path.resolve("./images");
-        if (!existsSync(folder)) {
-            mkdirSync(folder);
-        }
         const port = parseInt(process.env.PORT || "0") || 8080;
         app.listen(port, () => {
             console.log(`Listening on port ${port}`);

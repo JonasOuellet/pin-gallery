@@ -165,3 +165,10 @@ resource "google_storage_bucket_iam_member" "web-app-bucket" {
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.web-app.email}"
 }
+
+// set so all user have access and can see.
+resource "google_storage_bucket_iam_member" "all-read-bucket" {
+  bucket = google_storage_bucket.bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "allUsers"
+}
