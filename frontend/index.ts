@@ -244,7 +244,7 @@ class Collectionneur {
                             this.clearSimilarImages();
                             addNewImageElement(data.url, null, true);
 
-                            if (newCount >= 10) {
+                            if (!isIndexValid && newCount >= 10) {
                                 // show the dialog that inform user that he can create the index.
                                 btn.innerText = "Creer maintenant";
                                 (btn2.style as any).display = null;
@@ -262,8 +262,10 @@ class Collectionneur {
                                 dialog.showModal();
 
                             } else {
-                                // show the dialog that inform the user that the elem has been added.
-                                fetchIndexStatus();
+                                if (!isIndexValid) {
+                                    // show the dialog that inform the user that the elem has been added.
+                                    fetchIndexStatus();
+                                }
                                 btn.innerText = "Ok!";
                                 btn2.style.display = "none";
                                 p.innerText = "Nouvelle item ajoute avec succes.";
@@ -275,7 +277,7 @@ class Collectionneur {
                             }
                         },
                         error: (xhr, status, error) => {
-                            showDialog("Erreur", xhr.responseText);
+                            showDialog("Erreur", xhr.statusText);
                         }
                     })
                 }
@@ -369,7 +371,7 @@ class Collectionneur {
                     error: (xhr, status, error) => {
                         dialogElem.close();
                         dialogImg.src = "";
-                        showDialog("Error Occured", xhr.responseText);
+                        showDialog("Error Occured", xhr.statusText);
                     }
                 });
             }
@@ -444,7 +446,7 @@ class Collectionneur {
                             resolve(data);
                         },
                         error: (xhr, status, error) => {
-                            reject(xhr.responseText);
+                            reject(xhr.statusText);
                         }
                     })
                 })
@@ -478,6 +480,7 @@ let fetchIntervalNumber: number | null = null;
 let isDeployingIndex = false;
 let isCreatingIndex = false;
 let collectionneur: Collectionneur | null = null;
+let isIndexValid = false;
 
 
 function initAddNewItem() {
@@ -528,6 +531,7 @@ function deployInProgress() {
 
 
 function indexValid() {
+    isIndexValid = true;
     $("#index_search").show();
     $("#indexstatus").text("L'index est deploye est pret a etre utilise.  Vous pouvez annuler le deploiment lorsque vous n'avez plus besoin de l'index pour economiser des frais d'execution.");
     let btn = $("#indexactionundeploy");
@@ -544,7 +548,7 @@ function indexValid() {
             },
             error: (err) => {
                 btn.hide();
-                $("#indexstatus").text(`Une erreur est survenue: ${err.responseText}`);
+                $("#indexstatus").text(`Une erreur est survenue: ${err.statusText}`);
                 btn.css("visibility", "hidden");
             }
         })
@@ -575,7 +579,7 @@ function deployIndex() {
         },
         error: (err) => {
             btn.hide();
-            $("#indexstatus").text(`Une erreur est survenue: ${err.responseText}.`);
+            $("#indexstatus").text(`Une erreur est survenue: ${err.statusText}.`);
             btn.css("visibility", "hidden");
         }
     })
@@ -618,7 +622,7 @@ function createIndex() {
         },
         error: (data) => {
             console.log(data);
-            $("#indexstatus").text(`Une erreur est survenu: ${data.responseText}`);
+            $("#indexstatus").text(`Une erreur est survenu: ${data.statusText}`);
             $("#indexstatusbar").hide();
         }
     });
@@ -627,6 +631,7 @@ function createIndex() {
 
 function updateState(data: {status: string}) {
     // handle operation first
+    isIndexValid = false;
     if (data.status === "IndexIsBeingCreated" || data.status === "EndpointIsBeingCreated") {
         createIndexInProgress();
         // fetch status if not already fetching fetch faster for create index
@@ -689,7 +694,7 @@ function fetchIndexStatus() {
             updateState(data);
         },
         error: (data) => {
-            $("#indexstatus").text("Une erreur est survenue: " + data.responseText);
+            $("#indexstatus").text("Une erreur est survenue: " + data.statusText);
             $("#indexstatusbar").hide();
             if (fetchIntervalNumber !== null) {
                 clearInterval(fetchIntervalNumber);
@@ -760,7 +765,6 @@ function updateCount() {
         url: "/items/count",
         dataType: "json",
         success: (data) => {
-            console.log(data);
             let span = getElemById<HTMLSpanElement>("itemcount");
             let newCount = data.count;
             span.innerText = newCount.toString(); 
