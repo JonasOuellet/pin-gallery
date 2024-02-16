@@ -75,6 +75,8 @@ class Collectionneur {
     _initialImagePosition: Point2D = Point2D.origin();
     _initialScale: number = 1;
 
+    similarItemSearchCount: number = 5;
+
     constructor() {
         this.width = 256;
         this.height = 256;
@@ -283,8 +285,34 @@ class Collectionneur {
                 }
             )
         });
-    
-        $("#index_search").on("click", (event) => {
+
+        let indexSearch = $('#index_search');
+        let indexSearchBtn = indexSearch[0];
+        let fnUpdateText = () => {
+            indexSearchBtn.innerText = `RECHERCHER ${this.similarItemSearchCount} ITEMS SIMILAIRES`;
+        }
+
+        try {
+            this.similarItemSearchCount = parseInt(indexSearchBtn.innerText.trimStart().split(' ')[1], 10);
+            if (Number.isNaN(this.similarItemSearchCount)) {
+                this.similarItemSearchCount = 5;
+                fnUpdateText();
+            }
+        } catch {
+            fnUpdateText();
+        }
+
+        $("#index_search_add").on("click", (event) => {
+            this.similarItemSearchCount = Math.min(50, this.similarItemSearchCount + 1);
+            fnUpdateText();
+        })
+
+        $("#index_search_rem").on("click", (event) => {
+            this.similarItemSearchCount = Math.max(2, this.similarItemSearchCount - 1);
+            fnUpdateText();
+        })
+
+        indexSearch.on("click", (event) => {
             let elem = $("#imageSearchResult");
             if (!elem) {
                 throw new Error("Invalid element")
@@ -435,6 +463,7 @@ class Collectionneur {
             .then((image) => {
                 let formData = new FormData();
                 formData.append("image", image, "newImage.png");
+                formData.append("count", this.similarItemSearchCount.toString());
                 return new Promise((resolve, reject) => {
                     $.ajax({
                         url: "/item/similarimage",

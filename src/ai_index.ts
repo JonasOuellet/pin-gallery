@@ -405,7 +405,7 @@ export class IndexHandler {
                 returnFullDatapoint: false,
                 queries: [
                     {
-                        neighborCount:5,
+                        neighborCount: count,
                         datapoint: {featureVector: vector}
                     }
                 ]

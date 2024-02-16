@@ -31,6 +31,7 @@ app.use(express.static("./static"));
 
 const ITEM_TO_BUILD_INDEX = 10;
 const projectID = process.env.PROJECT_ID;
+const SIMILAR_ITEM_SEARCH_FIELD = "similarItem"
 
 // setup firestore
 // https://cloud.google.com/firestore/docs/emulator?hl=fr
@@ -165,8 +166,10 @@ async function getConnectionIp(req: express.Request)  {
 
 app.get('/', async (req, res) => {
     if (req.user && req.isAuthenticated()) {
-        let data = await db.doc(`Users/${(req.user as any).id}`).collection("items").count().get();
+        let user = db.doc(`Users/${(req.user as any).id}`);
+        let data = await user.collection("items").count().get();
         res.locals.nbitems = data.data().count;
+        res.locals.similarCount = (await user.get()).get(SIMILAR_ITEM_SEARCH_FIELD) || 5;
         return res.render('pages/index');
     }
     return res.render("pages/login");
@@ -422,8 +425,19 @@ app.post('/item/similarimage', upload.single('image'), async (req, res) => {
         return res.status(400).send("File not defined.");
     }
 
+    let count = 5;
     try {
-        let result = await indexHandler.findSimilarLocal(file.path)
+        count = Math.min(50, Math.max(2, parseInt(req.body.count, 10)));
+    } catch {}
+    
+    let obj: any = {};
+    obj[SIMILAR_ITEM_SEARCH_FIELD] = count;
+    db.doc(`Users/${user.id}`).update(obj).catch((reason) => {
+        console.log("Couldn't update similar item count: ", reason)
+    });
+
+    try {
+        let result = await indexHandler.findSimilarLocal(file.path, count);
         let urls: {url: string, distance: number}[] = [];
         for (let r of result) {
             urls.push({

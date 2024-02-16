@@ -41,11 +41,21 @@
     <canvas id="canvas" style="max-width: 256px; margin: auto; aspect-ratio: 1/1;"></canvas>
     
     <div style="text-align: center; margin-top: 20px;">
+        <button id="index_search_rem"
+            class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button"
+        >
+            <i class="material-icons">remove</i>
+          </button>
         <button id="index_search"
             class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
-            style="display: none;"
-        > Rechercher des items similaires
+            style="display: none; margin: 0px 10px;"
+        > Rechercher <%-similarCount%> items similaires
         </button>
+        <button id="index_search_add"
+            class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button"
+        >
+            <i class="material-icons">add</i>
+          </button>
         <div id="imageSearchResult" style="padding-top: 20px; padding-bottom: 20px;">
             <div id="imageSearchBar" style="margin: auto; display: none;" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
         </div>
