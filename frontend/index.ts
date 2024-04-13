@@ -74,6 +74,8 @@ class Collectionneur {
     imagePosition: Point2D = Point2D.origin();
     _initialImagePosition: Point2D = Point2D.origin();
     _initialScale: number = 1;
+    _initalScaleRatioX: number = 0.5;
+    _initalScaleRatioY: number = 0.5;
 
     similarItemSearchCount: number = 5;
 
@@ -140,6 +142,9 @@ class Collectionneur {
         }
 
         this._initalPos = new Point2D(event.x, event.y);
+        this._initalScaleRatioX = event.offsetX / this.canvas.width;
+        this._initalScaleRatioY = event.offsetY / this.canvas.height;
+        console.log(this._initalScaleRatioX, this._initalScaleRatioY);
         this._initialImagePosition = new Point2D(this.imagePosition.x, this.imagePosition.y);
         this._initialScale = this.imageScale;
 
@@ -178,12 +183,12 @@ class Collectionneur {
             } else {
                 document.body.style.cursor = "zoom-in";
             }
-            this.imageScale = this._initialScale + scaleValue * 0.001;
+            this.imageScale = this._initialScale + scaleValue * 0.002;
             let currentWidth = this.image.width * this._initialScale;
             let currentHeight = this.image.height * this._initialScale;
             this.imagePosition = this._initialImagePosition.add(new Point2D(
-                (currentWidth - (this.image.width * this.imageScale)) * 0.5,
-                (currentHeight - (this.image.height * this.imageScale)) * 0.5
+                (currentWidth - (this.image.width * this.imageScale)) * this._initalScaleRatioX,
+                (currentHeight - (this.image.height * this.imageScale)) * this._initalScaleRatioY
             ));
         }
         event.preventDefault();
