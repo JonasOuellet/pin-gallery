@@ -198,7 +198,8 @@ class Collectionneur {
                 this.video.srcObject = stream;
                 this.video.play();
 
-                getElemById<HTMLButtonElement>("captureBtn").addEventListener(
+                let btn = getElemById<HTMLButtonElement>("captureBtn");
+                btn.addEventListener(
                     "click",
                     (ev) => {
                         this.takePicture();
@@ -206,6 +207,23 @@ class Collectionneur {
                     },
                     false,
                 );
+                btn.addEventListener(
+                    "contextmenu",
+                    (ev) => {
+                        let elem = getElemById<HTMLInputElement>("browseImg");
+                        elem.click();
+                        elem.onchange = ((ev) => {
+                            if (elem.files) {
+                                let file = elem.files[0];
+                                createImageBitmap(file).then((image) => {
+                                    this.imgReceived(image);
+                                });
+                            }
+                        })
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                    }
+                )
             })
             .catch((err) => {
                 console.error(`Couldn't find camera: ${err}`);
@@ -774,7 +792,7 @@ function updateRecentlyAdded() {
     recentlyAdded.each((idx, elem) => {
         $.ajax({
             type: "GET",
-            url: "/items/read",
+            url: "/items/recentlyadded",
             dataType: 'json',
             success: (data) => {
                 for (let img of data.thumbnails) {
@@ -806,6 +824,9 @@ function updateCount() {
 
 
 $(() => {
+    $("#collectionBtn").on("click", () => {
+        window.location.href = "/gallery";
+    });
     updateRecentlyAdded();
     fetchIndexStatus();
 });

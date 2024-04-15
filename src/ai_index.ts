@@ -4,7 +4,7 @@ import { google } from "@google-cloud/aiplatform/build/protos/protos";
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
 import { readFile} from "fs/promises";
 import { Socket, createServer} from "net";
-import { unlink } from "fs";
+import * as fs from "fs";
 
 
 async function getPortFree(): Promise<number> {
@@ -125,6 +125,13 @@ export class IndexHandler {
                 }
             }
         };
+    }
+
+    stopVectorizer() {
+        if (this._pythonProcess && this._pythonProcess.exitCode === null) {
+            this._pythonProcess.kill();
+            this._pythonProcess = null;
+        }
     }
 
     async sendVectorizerCommand(command: string): Promise<any> {
@@ -379,7 +386,7 @@ export class IndexHandler {
             .then(async (result: {filepath: string}) => {
                 // check if file exists
                 let data = JSON.parse(await readFile(result.filepath, {encoding: 'ascii'}));
-                unlink(result.filepath, (err) => {if (err) {console.log(`Couldn't delete file ${result.filepath}. ${err}`)}});
+                fs.unlink(result.filepath, (err) => {if (err) {console.log(`Couldn't delete file ${result.filepath}. ${err}`)}});
                 return data;
         })
     }
@@ -523,5 +530,40 @@ export class IndexHandler {
             index: aiInfo.indexId,
             datapointIds: [id]
         });
+    }
+
+    async readDataPoints(ids: string[]): Promise<string> {
+        const [apiInfo, err] = await this.getAiInfo();
+        if (err) {
+            return Promise.reject(this.getErrorText(err));
+        }
+        if (apiInfo === null) {
+            return Promise.reject("Impossible de d'acceder a l'index pour le moment");
+        }
+
+        let matchClient = new ai.MatchServiceClient({
+            apiEndpoint: apiInfo.indexApiEndpoint,
+            projectId: this._project_id
+        });
+
+        let stream = fs.createWriteStream("datapoints.txt");
+        let current = 0;
+        while (current <= ids.length) {
+            let end = Math.min(ids.length, current + 1000);
+            let [result] = await matchClient.readIndexDatapoints({
+                deployedIndexId: apiInfo.deployedIndex,
+                indexEndpoint: apiInfo.indexEndPoint,
+                ids: ids.slice(current, end)
+            });
+            current += 1000;
+            if (result.datapoints) {
+                for (let data of result.datapoints) {
+                    let towrite = {id: data.datapointId, vector: data.featureVector};
+                    stream.write(JSON.stringify(towrite) + "\n");
+                }
+            }
+        }
+        stream.close();
+        return "datapoints.txt";
     }
 }

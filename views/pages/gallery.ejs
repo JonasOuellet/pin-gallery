@@ -1,0 +1,17 @@
+<%- include('../partials/head') %>
+
+  <h1>Galerie</h1>
+
+  <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="option-1">
+    <input type="radio" id="option-1" class="mdl-radio__button" name="options" value="1" checked>
+    <span class="mdl-radio__label">Du plus ancien au plus recent</span>
+  </label>
+  <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="option-2">
+    <input type="radio" id="option-2" class="mdl-radio__button" name="options" value="2">
+    <span class="mdl-radio__label">Du plus recent au plus ancien</span>
+  </label>
+
+  <div id="images"></div>
+
+  <script src="/js/gallery.js"></script>
+  <%- include('../partials/footer') %>

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<!-- Required meta tags -->
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<!-- Roboto Font-->
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700" type="text/css">
+
+	<!-- jquery -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
+	<!-- Material design icon-->
+	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+	<link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+	<script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+
+	
+	<title>Collection App</title>
+</head>
+
+<body>
+    <main style="padding-left: 60px; padding-right: 60px;">
+
+  <div style="margin-top: 380px; position: absolute;" id="images"></div>
+
+  <div style="position: fixed; width: 100%; background-color: white;">
+    <img src="<%-imageUrl%>" style="display: block; margin-left: auto; margin-right: auto; margin-top: 40px">
+  
+    <div style="text-align: center;">
+      <div class="mdl-textfield mdl-js-textfield">
+        <input class="mdl-textfield__input" type="text" value="50" pattern="-?[0-9]*(\.[0-9]+)?" id="searchCount">
+        <label class="mdl-textfield__label" for="searchCount">Number...</label>
+        <span class="mdl-textfield__error">Input is not a number!</span>
+      </div>
+  
+      <button id="searchbtn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored">Search</button>
+    </div>
+  </div>
+
+  <dialog id="simplemsgdialog" class="mdl-dialog" style="width: 30%;">
+    <h2 class="mdl-dialog__title">Operation Complete</h2>
+    <div class="mdl-dialog__content">
+        <p>Deploiement Completer</p>
+    </div>
+    <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
+        <button type="button" class="mdl-button">Ok!</button>
+    </div>
+</dialog>
+
+  <script src="/js/item.js"></script>
+  <%- include('../partials/footer') %>

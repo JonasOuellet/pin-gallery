@@ -9,6 +9,8 @@ from tempfile import NamedTemporaryFile
 import tensorflow as tf
 import numpy as np
 
+from PIL import Image
+
 import socket
 
 from google.cloud import storage
@@ -22,45 +24,27 @@ class TEmbedding(TypedDict):
     embedding: str
 
 
-MODEL = tf.keras.applications.EfficientNetB0(include_top=False, pooling="avg")
+IMG_SIZE = 224
+
+MODEL = tf.keras.applications.EfficientNetB0(include_top=False, pooling="avg", weights="imagenet")
 
 
-def vectorize_file(filename: str) -> list[float]:
-    import tensorflow as tf
-    raw = tf.io.read_file(filename)
-    return vectorize(raw, Path(filename).suffix)
-
-
-def vectorize(raw, ext) -> list[float]:
-    if ext.lower() == '.png':
-        image = tf.image.decode_png(raw, channels=3)
-    elif ext.lower() in ['.jpeg', '.jpg']:
-        image = tf.image.decode_jpeg(raw, channels=3)
-    else:
-        raise Exception(f"Invalid extension: {ext}")
-    
-    # https://keras.io/examples/vision/image_classification_efficientnet_fine_tuning/
-    # should I use pad here ?
-    resized = tf.image.resize(image, [224, 224])
-
-    result = MODEL.predict(np.array([resized.numpy()]))[0].tolist()
-
-    return result 
+def _vectorize_file(filename: str) -> list[float]:
+    img = Image.open(filename).convert("RGB")
+    resized = np.array(img.resize([IMG_SIZE, IMG_SIZE]))
+    # Image.fromarray(resized, mode="RGB").save("test.jpg")
+    return MODEL.predict(np.array([resized]))[0].tolist()
 
 
 def vectorize_blob(blob: "Blob") -> list[float]:
-    import tensorflow as tf
-
     with NamedTemporaryFile(prefix="updater") as temp:
         blob.download_to_filename(temp.name)
-        raw = tf.io.read_file(temp.name)
-
-    return vectorize(raw, Path(blob.name).suffix)
+        return _vectorize_file(temp.name)
 
 
 def cmd_vectorize_file(f: str):
     filename = Path(f)
-    result = vectorize_file(f)
+    result = _vectorize_file(f)
     out = filename.with_suffix('.json')
     with open(out, mode='w') as w:
         json.dump(result, w)
@@ -110,7 +94,6 @@ def cmd_generate_missing() -> int:
 
 
 if __name__ == "__main__":
-
     if len(sys.argv) > 1 and sys.argv[1] == "serve":
         port = int(sys.argv[2])
         print(f"Python is listenning on port: {port}")

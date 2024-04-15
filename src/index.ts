@@ -10,7 +10,7 @@ import { Storage } from "@google-cloud/storage";
 import { Firestore, Timestamp } from "@google-cloud/firestore";
 import { FirestoreStore } from '@google-cloud/connect-firestore';
 
-import { existsSync, mkdirSync, renameSync, unlink } from 'fs';
+import * as fs from 'fs';
 import * as path from "path";
 
 import { IndexHandler, AiInfoErrType } from './ai_index';
@@ -356,12 +356,12 @@ app.post('/item/create', upload.single('image'), async (req, res) => {
         res.send({url: bucketFile.publicUrl()});
     } 
     catch (err) {
-        unlink(file.path, () => {});
+        fs.unlink(file.path, () => {});
         return res.status(400).send(`Error Occured: ${err}`)
     }
     finally {
         // delete the files in the image folder
-        unlink(file.path, (err) => {
+        fs.unlink(file.path, (err) => {
             if (err) {
                 console.log(`Error occured deleting file: ${err}`)
             }    
@@ -453,13 +453,13 @@ app.post('/item/similarimage', upload.single('image'), async (req, res) => {
         res.status(400).send(err);
     }
     finally {
-        unlink(file.path, () => {});
+        fs.unlink(file.path, () => {});
     }
 
 });
 
 
-app.get('/items/read', async (req, res) => {
+app.get('/items/recentlyadded', async (req, res) => {
     try {
         let adminUser = await db.collection("Users")
             .where("username", "==", "Admin")
@@ -481,6 +481,42 @@ app.get('/items/read', async (req, res) => {
         console.log(err);
         return res.status(400).send('Error occured: ' + err);
     };
+});
+
+
+app.get('/items/read/:order/:count/:start?', async (req, res) => {
+    try {
+        let count = parseInt(req.params.count);
+        let adminUser = await db.collection("Users")
+            .where("username", "==", "Admin")
+            .get();
+        if (adminUser.docs.length === 0) {
+            return res.status(400).send('User not found.');
+        }
+        let user = adminUser.docs[0].data();
+        let collections = db.doc(`Users/${user.id}`).collection("items");
+        let query = collections.orderBy("timestamp", req.params.order as any);
+        if (req.params.start) {
+            let doc = collections.doc(req.params.start);
+            const snapshot = await doc.get();
+            query = collections.startAfter(snapshot);
+        }
+        let result = await query.limit(count).get();
+        let urls: string[] = [];
+        for (let item of result.docs) {
+            urls.push(bucket.file(`${item.id}.png`).publicUrl());
+        }
+        let start = undefined;
+        if (urls.length) {
+            let last = result.docs[result.docs.length - 1];
+            start = last.id;
+        }
+        return res.status(200).send({ images: urls,  start: start});
+    } catch (err) {
+        console.log(err);
+        return res.status(400).send('Error occured: ' + err);
+    };
+
 });
 
 
@@ -549,11 +585,186 @@ app.get('/deployindex', async (req, res) => {
 })
 
 
-indexHandler
-    .startVectorizer()
-    .then(() => {
-        const port = parseInt(process.env.PORT || "0") || 8080;
-        app.listen(port, () => {
-            console.log(`Listening on port ${port}`);
-        });
-    });
+app.get("/gallery", async (req, res) => {
+    if (req.user && req.isAuthenticated()) {
+        // let user = db.doc(`Users/${(req.user as any).id}`);
+        // let data = await user.collection("items").count().get();
+        // res.locals.nbitems = data.data().count;
+        // res.locals.similarCount = (await user.get()).get(SIMILAR_ITEM_SEARCH_FIELD) || 5;
+        return res.render('pages/gallery');
+    }
+    return res.render("pages/login");
+})
+
+
+app.get("/item/:id", async (req, res) => {
+    if (req.user && req.isAuthenticated()) {
+
+        try {
+            let url = bucket.file(`${req.params.id}.png`).publicUrl();
+            res.locals.imageUrl = url;
+            return res.render("pages/item");
+        } catch (error) {
+           return res.status(400).send("Invalid item") ;
+        }
+    }
+    return res.render("pages/login");
+})
+
+
+app.get("/item/:id/similar/:count?", async (req, res) => {
+    if (req.user && req.isAuthenticated()) {
+        try {
+            let file = await downloadImage(req.params.id);
+            let count: number = 50;
+            if (req.params.count) {
+                count = parseInt(req.params.count);
+            }
+            try {
+                let result = await indexHandler.findSimilarLocal(file, count);
+                let urls: {url: string, distance: number}[] = [];
+                for (let r of result) {
+                    urls.push({
+                        url: bucket.file(`${r.id}.png`).publicUrl(),
+                        distance: r.distance
+                    });
+                }
+                return res.send({results: urls});
+            } catch (err) {
+                return res.status(400).send(err) ;
+            } finally {
+                fs.rm(path.dirname(file), {recursive: true, force: true}, (err) => {if (err) {console.log(err)}});
+            }
+        } catch (error) {
+           return res.status(400).send(error) ;
+        }
+    } else {
+        return res.status(401).send("Unautorized.")
+    }
+})
+
+
+async function addDataPoint(id: string) {
+    let img = await downloadImage(id);
+
+    try {
+        await indexHandler.addDataPoint(
+            img,
+            id
+        )
+    } catch (err) {
+        console.log(err);
+    }
+    fs.rm(path.dirname(img), {recursive: true, force: true}, (err) => {if (err) {console.log(err)}});
+}
+
+
+async function getVectors(): Promise<void> {
+    let collections = db.doc("Users/rTw4N7tjtaxOR6y0YC98").collection("items");
+    let result = await collections.select().get();
+
+    let ids = [];
+    for (let item of result.docs) {
+        ids.push(item.id);
+    }
+    
+    try {
+        await indexHandler.readDataPoints(ids);
+    } catch (e) {
+        console.log(e);
+    }
+}
+
+
+// getVectors()
+//     .then(() => {
+//     })
+// 
+
+// addDataPoint("DiXS707DDb7U3htcYUns");
+
+async function updatefirst15Elem() {
+    let collections = db.doc("Users/rTw4N7tjtaxOR6y0YC98").collection("items");
+    let result = await collections
+        .orderBy("timestamp", "asc")
+        .limit(15)
+        .get();
+    for (let r of result.docs) {
+        await addDataPoint(r.id);
+    }
+}
+
+
+async function downloadImage(imageid: string): Promise<string> {
+    let filename = `${imageid}.png`
+    let dir = fs.mkdtempSync("imgSearch");
+    let destination = path.join(dir, filename);
+    let file = bucket.file(filename);
+    let result = await file.download({destination: destination})
+    return destination;
+}
+
+
+async function regenerateAll(): Promise<void> {
+    let collections = db.doc("Users/rTw4N7tjtaxOR6y0YC98").collection("items");
+
+    let doc = collections.doc("EvPNiTxn7x4YQbY8Bvuo");
+    const snapshot = await doc.get();
+
+    let result = await collections
+        .orderBy("timestamp", "asc")
+        .startAt(snapshot)
+        .get();
+    
+    let total = result.docs.length;
+    let current = 1;
+    for (let doc of result.docs) {
+        console.log(`${current}/${total} ${doc.id}`);
+        let file = await downloadImage(doc.id);
+        try {
+            await indexHandler.addDataPoint(file, doc.id);
+        } catch (err) {
+            console.log(err);
+            return;
+        } finally {
+            fs.rm(path.dirname(file), {recursive: true, force: true}, (err) => {if (err) {console.log(err)}});
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+        current += 1;
+    }
+}
+
+
+async function main () {
+    if (process.argv.length > 2) {
+        if (process.argv[2] === "gen") {
+            console.log("Generating vector...");
+            try {
+                await getVectors();
+            } catch (err) {
+                console.log(err);
+            }
+        }
+        else if (process.argv[2] === "add") {
+            try {
+                console.log(`Adding data point: ${process.argv[3]}...`);
+                await addDataPoint(process.argv[3]);
+            } catch (error) {
+                console.log(error);
+            }
+        }
+    } else {
+        indexHandler
+            .startVectorizer()
+            .then(() => {
+                const port = parseInt(process.env.PORT || "0") || 8080;
+                app.listen(port, () => {
+                    console.log(`Listening on port ${port}`);
+                });
+            });
+    }
+};
+
+
+main();
