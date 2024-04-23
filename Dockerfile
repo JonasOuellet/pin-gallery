@@ -1,6 +1,6 @@
 # to build a docker file with python and node.
 # https://codepal.ai/dockerfile-writer.py/query/wrUIAqfT/dockerfile-python-nodejs
-FROM python:3.9.2
+FROM python:3.10.12
 
 # Set environment variables for configuration and to set defaults
 ENV NODE_VERSION=20

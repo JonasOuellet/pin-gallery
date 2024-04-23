@@ -24,9 +24,11 @@ class TEmbedding(TypedDict):
     embedding: str
 
 
-IMG_SIZE = 224
+# IMG_SIZE = 224
+# MODEL = tf.keras.applications.EfficientNetB0(include_top=False, pooling="avg", weights="imagenet")
 
-MODEL = tf.keras.applications.EfficientNetB0(include_top=False, pooling="avg", weights="imagenet")
+IMG_SIZE = 600
+MODEL = tf.keras.applications.EfficientNetB7(include_top=False, pooling="avg", weights="imagenet")
 
 
 def _vectorize_file(filename: str) -> list[float]:

@@ -571,17 +571,20 @@ app.get('/deployindex', async (req, res) => {
     if (user === undefined || req.isUnauthenticated()) {
         return res.status(401).send("Unautorised");
     }
-    let result = await indexHandler.deployIndex();
-    if (result !== null) {
-        // this is the name of the operation
-        let doc = db.doc(`Users/${user.id}`);
-        await doc.update( {
-            deployOperation: result
-        });
-        return res.send();
+    try {
+        let result = await indexHandler.deployIndex();
+        if (result !== null) {
+            // this is the name of the operation
+            let doc = db.doc(`Users/${user.id}`);
+            await doc.update( {
+                deployOperation: result
+            });
+            return res.send();
+        }
+    } catch (err) {
+        return res.status(400).send("L'index est deja deploye ou est en cours d'annulation.  Veuillez reessayer plus tard.");
     }
 
-   return res.status(400).send("L'index est deja deploye ou est en cours d'annulation.  Veuillez reessayer plus tard.");
 })
 
 

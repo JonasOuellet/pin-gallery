@@ -43,7 +43,10 @@ export class IndexHandler {
     _project_id: string
     _region: string
 
-    indexDisplayName: string = "collector"
+    indexDisplayName: string = "collectorv2"
+    machineType: string = "e2-standard-16"
+    // indexDisplayName: string = "collector"
+    // machineType: string = "e2-standard-2"
 
     _indexEndPoint: string | null = null;
     _indexApiEndpoint: string | null = null;
@@ -347,12 +350,12 @@ export class IndexHandler {
         try {
             let [response, operation] = await this._endPointClient.deployIndex({
                 deployedIndex: {
-                    id: "collector_search_index",
+                    id: `${this.indexDisplayName}_search_index`,
                     index: index.name,
-                    displayName: "Deployed collector search index",
+                    displayName: `Deployed ${this.indexDisplayName} search index`,
                     dedicatedResources: {
                         machineSpec: {
-                            machineType: "e2-standard-2",
+                            machineType: this.machineType,
                         },
                         minReplicaCount: 1,
                         maxReplicaCount: 1,
@@ -370,6 +373,8 @@ export class IndexHandler {
 
         } catch (err) {
             // the index might be undeploying...
+            console.log(err);
+            return Promise.reject(`${err}`)
         }
         return null;
     }

@@ -23,7 +23,7 @@
         },
         {
             "name": "vectorize",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "search-engine/vectorizer.py",
             "args": ["--missing"],
@@ -36,7 +36,7 @@
         },
         {
             "name": "vectorize update",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "search-engine/vectorizer.py",
             "args": ["dPljx0DGKcX0FuPmvpRB.png"],
@@ -49,7 +49,7 @@
         },        
         {
             "name": "search",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "vectorizer.py",
             "args": ["serve"],

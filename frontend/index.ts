@@ -297,7 +297,7 @@ class Collectionneur {
                             }
                         },
                         error: (xhr, status, error) => {
-                            showDialog("Erreur", xhr.statusText);
+                            showDialog("Erreur", xhr.responseText);
                         }
                     })
                 }
@@ -417,7 +417,7 @@ class Collectionneur {
                     error: (xhr, status, error) => {
                         dialogElem.close();
                         dialogImg.src = "";
-                        showDialog("Error Occured", xhr.statusText);
+                        showDialog("Error Occured", xhr.responseText);
                     }
                 });
             }
@@ -493,7 +493,7 @@ class Collectionneur {
                             resolve(data);
                         },
                         error: (xhr, status, error) => {
-                            reject(xhr.statusText);
+                            reject(xhr.responseText);
                         }
                     })
                 })
@@ -595,7 +595,7 @@ function indexValid() {
             },
             error: (err) => {
                 btn.hide();
-                $("#indexstatus").text(`Une erreur est survenue: ${err.statusText}`);
+                $("#indexstatus").text(`Une erreur est survenue: ${err.responseText}`);
                 btn.css("visibility", "hidden");
             }
         })
@@ -626,7 +626,7 @@ function deployIndex() {
         },
         error: (err) => {
             btn.hide();
-            $("#indexstatus").text(`Une erreur est survenue: ${err.statusText}.`);
+            $("#indexstatus").text(`Une erreur est survenue: ${err.responseText}.`);
             btn.css("visibility", "hidden");
         }
     })
@@ -669,7 +669,7 @@ function createIndex() {
         },
         error: (data) => {
             console.log(data);
-            $("#indexstatus").text(`Une erreur est survenu: ${data.statusText}`);
+            $("#indexstatus").text(`Une erreur est survenu: ${data.responseText}`);
             $("#indexstatusbar").hide();
         }
     });
@@ -741,7 +741,7 @@ function fetchIndexStatus() {
             updateState(data);
         },
         error: (data) => {
-            $("#indexstatus").text("Une erreur est survenue: " + data.statusText);
+            $("#indexstatus").text("Une erreur est survenue: " + data.responseText);
             $("#indexstatusbar").hide();
             if (fetchIntervalNumber !== null) {
                 clearInterval(fetchIntervalNumber);

@@ -53,3 +53,14 @@ Cout de vertex AI: [cost](https://cloud.google.com/vertex-ai/pricing?hl=fr#match
 ## Cloud Resource Manager API
 Need to activate cloud resource manager api
 
+# Run in a dev container
+
+Run this to authentificate the first time
+```bash
+gcloud auth application-default login
+```
+
+Once logged set the current project
+```bash
+gcloud config set project $PROJECT_ID
+```
