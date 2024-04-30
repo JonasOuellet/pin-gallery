@@ -348,13 +348,14 @@ app.post('/item/create', upload.single('image'), async (req, res) => {
     let destination = doc.id + ext;
 
     try {
+        let vectorizeData = await indexHandler.vectorizeLocalFileWithText(file.path);
         let [bucketFile] = await bucket.upload(file.path, {destination: destination});
-        await doc.set({timestamp: Timestamp.now()});
+        await doc.set({timestamp: Timestamp.now(), text: vectorizeData.text});
         if (await indexHandler.indexExists()) {
             // update the index
             await indexHandler.addDataPoint(
-                file.path,
-                doc.id
+                doc.id,
+                vectorizeData.vector
             )
         }
         res.send({url: bucketFile.publicUrl()});
@@ -650,6 +651,49 @@ app.get("/gallery", async (req, res) => {
     return res.render("pages/login");
 })
 
+app.get("/duplicate", async (req, res) => {
+    if (req.user && req.isAuthenticated()) {
+        // let user = db.doc(`Users/${(req.user as any).id}`);
+        // let data = await user.collection("items").count().get();
+        // res.locals.nbitems = data.data().count;
+        // res.locals.similarCount = (await user.get()).get(SIMILAR_ITEM_SEARCH_FIELD) || 5;
+        return res.render('pages/duplicate');
+    }
+    return res.render("pages/login");
+})
+
+app.get('/duplicates/read/:count/:start?', async (req, res) => {
+    let user = req.user as User;
+    if (user === undefined || req.isUnauthenticated()) {
+        return res.status(401).send("Unautorised");
+    }
+    try {
+        let count = parseInt(req.params.count);
+        let collections = db.doc(`Users/${user.id}`).collection("duplicates");
+        let query = collections.orderBy("timestamp", "asc");
+        if (req.params.start) {
+            let doc = collections.doc(req.params.start);
+            const snapshot = await doc.get();
+            query = collections.startAfter(snapshot);
+        }
+        let result = await query.limit(count).get();
+        let urls: string[] = [];
+        for (let item of result.docs) {
+            urls.push(bucket.file(`${item.id}.png`).publicUrl());
+        }
+        let start = undefined;
+        if (urls.length) {
+            let last = result.docs[result.docs.length - 1];
+            start = last.id;
+        }
+        return res.status(200).send({ images: urls,  start: start});
+    } catch (err) {
+        console.log(err);
+        return res.status(400).send('Error occured: ' + err);
+    };
+
+});
+
 
 app.get("/duplicate/create/:id", async (req, res) => {
     if (req.user && req.isAuthenticated()) {
@@ -674,6 +718,8 @@ app.get("/duplicate/create/:id", async (req, res) => {
 
             let dupCollection = db.doc(`Users/${(req.user as any).id}`).collection("duplicates");
             let data = doc.data() || {};
+            // update timestamp
+            data.timestamp = Timestamp.now()
             dupCollection.doc(req.params.id).set(data);
 
             return res.send("Item ajouter aux doublons avec succes.")
@@ -688,9 +734,13 @@ app.get("/duplicate/create/:id", async (req, res) => {
 
 app.get("/item/:id", async (req, res) => {
     if (req.user && req.isAuthenticated()) {
-
         try {
             let url = bucket.file(`${req.params.id}.png`).publicUrl();
+            let collection = db.doc(`Users/${(req.user as any).id}`).collection("items");
+            let texts: string[] = (await collection.doc(req.params.id).get()).get("text") || [];
+            if (texts) {
+                res.locals.imageText = texts.join(" ");
+            }
             res.locals.imageUrl = url;
             return res.render("pages/item");
         } catch (error) {

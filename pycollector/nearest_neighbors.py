@@ -10,7 +10,7 @@ def _find(
     image: str,
     number: int
 ) -> list[tuple[str, float]]:
-    vector = core_tf.vectorize_with_text(image)
+    vector, _ = core_tf.vectorize_with_text(image)
     weights = core.load_datapoints()
 
     # use all processes

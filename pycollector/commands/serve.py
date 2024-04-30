@@ -14,6 +14,7 @@ class ServeCommand(BaseCommand):
 
         self._commands: dict[str, Callable[[socket.socket, dict[str, Any]], None]] = {
             "vectorize": self.vectorize,
+            "vectorize-with-text": self.vectorize_with_text,
             "status": self.status_cmd,
             "nearest-neighbors": self.nearest_neighbors
         }
@@ -48,9 +49,21 @@ class ServeCommand(BaseCommand):
             return conn.sendall(json.dumps({"error": "File not specified"}).encode())
 
         with core.DownloadOrLocalImage(file) as img:
-            result = core_tf.vectorize_with_text(img)
+            result, _ = core_tf.vectorize_with_text(img)
 
         return conn.sendall(json.dumps({"vector": result.tolist()}).encode())
+
+    def vectorize_with_text(self, conn: socket.socket, request: dict[str, Any]):
+        from .. import core
+        from .. import core_tf
+        file = request.get("file", None)
+        if not file:
+            return conn.sendall(json.dumps({"error": "File not specified"}).encode())
+
+        with core.DownloadOrLocalImage(file) as img:
+            result, texts = core_tf.vectorize_with_text(img)
+
+        return conn.sendall(json.dumps({"vector": result.tolist(), "text": texts}).encode())
 
     def process(self, conn: socket.socket):
         try:

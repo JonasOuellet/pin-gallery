@@ -29,6 +29,7 @@ $(() => {
                 const imgElem = $('<img />')
                 .attr('src', img)
                 .attr('style', "padding: 10px; max-width: 128px; max-height: 128px");
+                imgElem.on('contextmenu', customImageMenu);
                 imagesElem.appendChild(imgElem.get(0) as HTMLElement);
             }
             lastFetch = data.start;

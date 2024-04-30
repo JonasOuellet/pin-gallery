@@ -21,12 +21,11 @@
 </head>
 
 <body>
-    <main style="padding-left: 60px; padding-right: 60px;">
-
   <div style="margin-top: 380px; position: absolute;" id="images"></div>
 
   <div style="position: fixed; width: 100%; background-color: white;">
-    <img src="<%-imageUrl%>" style="display: block; margin-left: auto; margin-right: auto; margin-top: 40px">
+    <div style="text-align: center; margin-top: 20px;"><span><%-imageText%></span></div>
+    <img src="<%-imageUrl%>" style="display: block; margin-left: auto; margin-right: auto; margin-top: 20px">
   
     <div style="text-align: center;">
       <div class="mdl-textfield mdl-js-textfield">
@@ -39,15 +38,8 @@
     </div>
   </div>
 
-  <dialog id="simplemsgdialog" class="mdl-dialog" style="width: 30%;">
-    <h2 class="mdl-dialog__title">Operation Complete</h2>
-    <div class="mdl-dialog__content">
-        <p>Deploiement Completer</p>
-    </div>
-    <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
-        <button type="button" class="mdl-button">Ok!</button>
-    </div>
-</dialog>
+  <%- include('../partials/simple_dialog.ejs') %>
+  <%- include('../partials/image_menu.ejs') %>
 
   <script src="/js/item.js"></script>
   <%- include('../partials/footer') %>

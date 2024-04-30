@@ -127,7 +127,7 @@ class LocalIndex(BaseCommand):
                     if namespace.update_text:
                         item.reference.update({"text": texts})
                         print(f'Text updated with {texts}')
-                    result = core_tf.vectorize_with_text(filename, texts=texts)
+                    result, _ = core_tf.vectorize_with_text(filename, texts=texts)
                     result.tofile(datapoints_file)
                 ids_file.write(f"{_id}\n")
 

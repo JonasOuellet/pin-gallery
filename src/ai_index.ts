@@ -435,6 +435,15 @@ export class IndexHandler {
         })
     }
 
+    async vectorizeLocalFileWithText(filename: string): Promise<{vector: number[], text: string[]}> {
+        let command: IPyCollectorCommandVectorize = {
+            command: "vectorize-with-text",
+            file: filename
+        };
+
+        return this.sendPyCollectorCommand(command);
+    }
+
     async vectorizeLocalFile(filename: string): Promise<number[]> {
         let command: IPyCollectorCommandVectorize = {
             command: "vectorize",
@@ -491,23 +500,21 @@ export class IndexHandler {
         });
     }
 
-    async addDataPoint(filename: string, id: string) {
-        return this.vectorizeLocalFile(filename).then(async (vector) => {
-            const [aiInfo, err] = await this.getUndeployedAiInfo();
-            if (err) {
-                return Promise.reject(this.getErrorText(err));
-            }
-            if (aiInfo === null) {
-                return Promise.reject("Impossible de d'acceder a l'index pour le moment");
-            }
-            let response = await this._indexClient.upsertDatapoints({
-                index: aiInfo.indexId,
-                datapoints: [{
-                    datapointId: id,
-                    featureVector: vector
-                }]
-            });
-        })
+    async addDataPoint(id: string, vector: number[]) {
+        const [aiInfo, err] = await this.getUndeployedAiInfo();
+        if (err) {
+            return Promise.reject(this.getErrorText(err));
+        }
+        if (aiInfo === null) {
+            return Promise.reject("Impossible de d'acceder a l'index pour le moment");
+        }
+        let response = await this._indexClient.upsertDatapoints({
+            index: aiInfo.indexId,
+            datapoints: [{
+                datapointId: id,
+                featureVector: vector
+            }]
+        });
     }
 
     async isIndexDeployed(): Promise<boolean> {
@@ -582,7 +589,7 @@ export class IndexHandler {
             return Promise.reject("Impossible de d'acceder a l'index pour le moment");
         }
 
-        await this._indexClient.removeDatapoints({
+        let [response] = await this._indexClient.removeDatapoints({
             index: aiInfo.indexId,
             datapointIds: [id]
         });

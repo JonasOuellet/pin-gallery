@@ -27,7 +27,7 @@
             "env": {
                 "PROJECT_ID": "macarons-410004",
                 "REGION": "northamerica-northeast1",
-                "USE_PYCOLLECTOR": "1"
+                // "USE_PYCOLLECTOR": "1"
             }
         },
         {

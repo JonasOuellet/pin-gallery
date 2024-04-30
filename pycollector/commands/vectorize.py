@@ -22,7 +22,7 @@ class Vectorize(BaseCommand):
             if namespace.no_text:
                 result = core_tf.vectorize_file(file)
             else:
-                result = core_tf.vectorize_with_text(file)
+                result, _ = core_tf.vectorize_with_text(file)
 
         print(result.tolist())
 

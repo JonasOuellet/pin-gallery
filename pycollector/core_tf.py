@@ -13,16 +13,16 @@ MODEL_B0 = tf.keras.applications.EfficientNetB0(include_top=False, pooling="avg"
 def vectorize_with_text(
     filename: str,
     texts: list[str] | None = None
-) -> np.ndarray:
+) -> tuple[np.ndarray, list[str]]:
     if texts is None:
         texts = core.detect_text(filename)
 
     if texts:
         encoded_text = core.encode_text(texts)
         if encoded_text is not None:
-            return encoded_text
+            return encoded_text, texts
 
-    return vectorize_file(filename)
+    return vectorize_file(filename), []
 
 
 def vectorize_file(filename: str) -> np.ndarray:

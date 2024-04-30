@@ -12,6 +12,7 @@
 
 <div style="text-align: center; padding-top: 30px;">
     <button id="collectionBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored">Afficher toute la collection</button>
+    <button id="duplicateBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored">Afficher les doublons</button>
 </div>
 
 
@@ -73,16 +74,6 @@
     </div>
 </div>
 
-<dialog id="simplemsgdialog" class="mdl-dialog" style="width: 30%;">
-    <h2 class="mdl-dialog__title">Operation Complete</h2>
-    <div class="mdl-dialog__content">
-        <p>Deploiement Completer</p>
-    </div>
-    <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
-        <button type="button" class="mdl-button">Ok!</button>
-    </div>
-</dialog>
-
 <dialog id="itemaddeddialog" class="mdl-dialog" style="width: 30%;">
     <h2 id="dialogtitle" class="mdl-dialog__title">Succes</h2>
     <div class="mdl-dialog__content">
@@ -106,24 +97,10 @@
     </div>
 </dialog>
 
-<ul id="image_menu" class="mdl-menu mdl-menu--bottom-left mdl-js-menu" style="display: none;">
-  <li class="mdl-menu__item">Aggrandir</li>
-  <li class="mdl-menu__item">Plus d'info</li>
-  <li class="mdl-menu__item">Ajouter aux doublons</li>
-</ul>
 
 
-<dialog id="deletedialog" class="mdl-dialog" style="width: 30%;">
-    <h2 class="mdl-dialog__title">Supression</h2>
-    <div class="mdl-dialog__content">
-        <p>Etes-vous sur de vouloir supprimer cet item de la collection?</p>
-        <img style="max-width: 128px; max-height: 128px; margin: auto; display: block;">
-    </div>
-    <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
-        <button type="button" class="mdl-button">Oui</button>
-        <button type="button" class="mdl-button">Non</button>
-    </div>
-</dialog>
+<%- include('../partials/simple_dialog.ejs') %>
+<%- include('../partials/image_menu.ejs') %>
 
 
 <script src="/js/index.js"></script>

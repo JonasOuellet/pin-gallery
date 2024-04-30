@@ -22,10 +22,19 @@ class UpdateRemoteIndex(BaseCommand):
 
         start = 0
         step = 1000
-        for end in range(start + step, len(indexes), step):
+
+        first_time = True
+
+        for end in range(start + step, len(indexes) + step, step):
+            if not first_time:
+                print("Sleeping...", flush=True)
+                time.sleep(30) # do only 2 request per minutes
+            
+            end = min(end, len(indexes))
+
             print(f"Updating from {start} to {end - 1}...")
             request = UpsertDatapointsRequest()
-            request.index = "projects/339871598892/locations/northamerica-northeast1/indexes/3844103756937428992"
+            request.index = "projects/339871598892/locations/northamerica-northeast1/indexes/5608529648448176128"
 
             for idx, dt in zip(indexes[start:end], datapoints[start:end]):
                 request.datapoints.append(
@@ -40,9 +49,7 @@ class UpdateRemoteIndex(BaseCommand):
             # print(response)
 
             start = end
-
-            print("Sleeping...", flush=True)
-            time.sleep(30) # do only 2 request per minutes
+            first_time = False
 
 
 register(UpdateRemoteIndex())

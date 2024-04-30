@@ -10,16 +10,6 @@ $(() => {
         })
     }
 
-    function showDialog(title: string, content: string) {
-        let dialog = document.querySelector("#simplemsgdialog") as HTMLDialogElement;
-        (dialog.querySelector("h2") as HTMLHeadElement).innerText = title;
-        (dialog.querySelector("p") as HTMLParagraphElement).innerText = content;
-        (dialog.querySelector("button") as HTMLButtonElement).onclick = () => {
-            dialog.close();
-        }
-        dialog.showModal();
-    };
-
     $("#searchbtn").on("click", (event) => {
         if (searching) {
             return;
@@ -48,6 +38,7 @@ $(() => {
                     .attr('src', r.url)
                     .attr('title', `${r.distance}`)
                     .attr('style', "padding: 10px; max-width: 128px; max-height: 128px");
+                    thumbnailImage.on("contextmenu", customImageMenu)
                     elem.appendChild(thumbnailImage.get(0) as HTMLElement);
                 }
 
