@@ -387,12 +387,25 @@ class Collectionneur {
         };
 
         document.addEventListener("click", documentCloseMenu);
+        let imageID = (imgElement.src.split("/").pop() as string).split('.')[0];
 
-        let deleteAction = menu.children()[0];
-        deleteAction.onclick = (ev) => {
+        let [
+            openInNewTab,
+            showMoreInfo,
+            addToDupp
+        ] = menu.children();
+        openInNewTab.onclick = (ev) => {
             closeMenu();
-            let imageID = (imgElement.src.split("/").pop() as string).split('.')[0];
+            window.open(imgElement.src, '_blank');
+        }
+        
+        showMoreInfo.onclick = (ev) => {
+            closeMenu();
+            window.open(`/item/${imageID}`, '_blank');
+        }
 
+        addToDupp.onclick = (ev) => {
+            closeMenu();
             // popup the dialog
             let dialog = $("#deletedialog");
             let dialogElem = dialog.get(0) as HTMLDialogElement;
@@ -402,7 +415,7 @@ class Collectionneur {
             cancelbtn.onclick = () => {dialogElem.close()};
             okbtn.onclick = () => {
                 $.ajax({
-                    url: `/item/delete/${imageID}`,
+                    url: `/duplicate/create/${imageID}`,
                     method: "GET",
                     processData: false,
                     contentType: false,

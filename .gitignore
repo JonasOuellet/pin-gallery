@@ -13,3 +13,8 @@ terraform/.terraform.lock.hcl
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/startup.sh
+
+__pycache__
+
+ids.txt
+datapoints.bin

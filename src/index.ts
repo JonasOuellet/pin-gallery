@@ -182,6 +182,10 @@ app.get('/indexstatus', async (req, res) => {
         return res.status(401).send("Unautorized.")
     }
 
+    if (process.env.USE_PYCOLLECTOR === "1") {
+        return res.send({ status: IndexStatus[IndexStatus.IndexValid] })
+    }
+
     try {
         let userDoc = db.doc(`Users/${user.id}`);
         let userData = (await userDoc.get()).data() as User | undefined;
@@ -436,6 +440,24 @@ app.post('/item/similarimage', upload.single('image'), async (req, res) => {
         console.log("Couldn't update similar item count: ", reason)
     });
 
+
+    if (process.env.USE_PYCOLLECTOR === "1") {
+        try {
+            console.log(`finding nearest neighbors using pycollector...`)
+            let result = await indexHandler.pyCollectorNN(file.path, count);
+            let urls: {url: string, distance: number}[] = [];
+            for (let r of result) {
+                urls.push({
+                    url: bucket.file(`${r[0]}.png`).publicUrl(),
+                    distance: r[1]
+                });
+            } 
+            return res.send({results: urls});
+        } finally {
+            fs.unlink(file.path, () => {});
+        }
+    }
+
     try {
         let result = await indexHandler.findSimilarLocal(file.path, count);
         let urls: {url: string, distance: number}[] = [];
@@ -483,6 +505,35 @@ app.get('/items/recentlyadded', async (req, res) => {
     };
 });
 
+
+app.get('/items/read/similar/:page', async (req, res) => {
+    try {
+        let cluster = Math.max(0, parseInt(req.params.page) - 1);
+        let adminUser = await db.collection("Users")
+            .where("username", "==", "Admin")
+            .get();
+        if (adminUser.docs.length === 0) {
+            return res.status(400).send('User not found.');
+        }
+        let user = adminUser.docs[0].data();
+        let collections = db.doc(`Users/${user.id}`).collection("items");
+        let query = collections
+            .where("cluster", "==", cluster)
+            .orderBy("distance", "asc");
+        let result = await query.get();
+        let urls: string[] = [];
+        for (let item of result.docs) {
+            urls.push(bucket.file(`${item.id}.png`).publicUrl());
+        }
+        if (urls.length) {
+            result.docs[result.docs.length - 1];
+        }
+        return res.status(200).send({ images: urls });
+    } catch (err) {
+        console.log(err);
+        return res.status(400).send('Error occured: ' + err);
+    };
+})
 
 app.get('/items/read/:order/:count/:start?', async (req, res) => {
     try {
@@ -600,6 +651,41 @@ app.get("/gallery", async (req, res) => {
 })
 
 
+app.get("/duplicate/create/:id", async (req, res) => {
+    if (req.user && req.isAuthenticated()) {
+        // remove the document from the item collection
+        let collections = db.doc(`Users/${(req.user as any).id}`).collection("items");
+
+        let docRef = collections.doc(req.params.id)
+        let doc = await docRef.get();
+        if (doc.exists) {
+            try {
+                await indexHandler.removeItem(req.params.id);
+            } catch (err) {
+                return res.status(400).send(err);
+            }
+
+            // remove it from the db
+            try {
+                await docRef.delete()
+            } catch (err) {
+                return res.status(400).send("Impossible de supprimer l'item de la base de donnee.")
+            }
+
+            let dupCollection = db.doc(`Users/${(req.user as any).id}`).collection("duplicates");
+            let data = doc.data() || {};
+            dupCollection.doc(req.params.id).set(data);
+
+            return res.send("Item ajouter aux doublons avec succes.")
+            
+        } else {
+            return res.status(400).send(`item ${req.params.id} doesn't exit.`)
+        }
+    }
+    return res.status(401).send("unautorized")
+});
+
+
 app.get("/item/:id", async (req, res) => {
     if (req.user && req.isAuthenticated()) {
 
@@ -617,27 +703,39 @@ app.get("/item/:id", async (req, res) => {
 
 app.get("/item/:id/similar/:count?", async (req, res) => {
     if (req.user && req.isAuthenticated()) {
+        // always use one more because it will return the same id
+        let count: number = 51;
+        if (req.params.count) {
+            count = parseInt(req.params.count) + 1;
+        }
+
+        if (process.env.USE_PYCOLLECTOR === "1") {
+            console.log(`finding nearest neighbors using pycollector...`)
+            let result = await indexHandler.pyCollectorNN(req.params.id, count);
+            let urls: {url: string, distance: number}[] = [];
+            for (let r of result) {
+                if (r[0] != req.params.id) {
+                    urls.push({
+                        url: bucket.file(`${r[0]}.png`).publicUrl(),
+                        distance: r[1]
+                    });
+                }
+            } 
+            return res.send({results: urls});
+        }
+
         try {
-            let file = await downloadImage(req.params.id);
-            let count: number = 50;
-            if (req.params.count) {
-                count = parseInt(req.params.count);
-            }
-            try {
-                let result = await indexHandler.findSimilarLocal(file, count);
-                let urls: {url: string, distance: number}[] = [];
-                for (let r of result) {
+            let result = await indexHandler.findSimilarLocal(req.params.id, count);
+            let urls: {url: string, distance: number}[] = [];
+            for (let r of result) {
+                if (r.id != req.params.id) {
                     urls.push({
                         url: bucket.file(`${r.id}.png`).publicUrl(),
                         distance: r.distance
                     });
                 }
-                return res.send({results: urls});
-            } catch (err) {
-                return res.status(400).send(err) ;
-            } finally {
-                fs.rm(path.dirname(file), {recursive: true, force: true}, (err) => {if (err) {console.log(err)}});
             }
+            return res.send({results: urls});
         } catch (error) {
            return res.status(400).send(error) ;
         }
@@ -647,126 +745,12 @@ app.get("/item/:id/similar/:count?", async (req, res) => {
 })
 
 
-async function addDataPoint(id: string) {
-    let img = await downloadImage(id);
-
-    try {
-        await indexHandler.addDataPoint(
-            img,
-            id
-        )
-    } catch (err) {
-        console.log(err);
-    }
-    fs.rm(path.dirname(img), {recursive: true, force: true}, (err) => {if (err) {console.log(err)}});
-}
-
-
-async function getVectors(): Promise<void> {
-    let collections = db.doc("Users/rTw4N7tjtaxOR6y0YC98").collection("items");
-    let result = await collections.select().get();
-
-    let ids = [];
-    for (let item of result.docs) {
-        ids.push(item.id);
-    }
-    
-    try {
-        await indexHandler.readDataPoints(ids);
-    } catch (e) {
-        console.log(e);
-    }
-}
-
-
-// getVectors()
-//     .then(() => {
-//     })
-// 
-
-// addDataPoint("DiXS707DDb7U3htcYUns");
-
-async function updatefirst15Elem() {
-    let collections = db.doc("Users/rTw4N7tjtaxOR6y0YC98").collection("items");
-    let result = await collections
-        .orderBy("timestamp", "asc")
-        .limit(15)
-        .get();
-    for (let r of result.docs) {
-        await addDataPoint(r.id);
-    }
-}
-
-
-async function downloadImage(imageid: string): Promise<string> {
-    let filename = `${imageid}.png`
-    let dir = fs.mkdtempSync("imgSearch");
-    let destination = path.join(dir, filename);
-    let file = bucket.file(filename);
-    let result = await file.download({destination: destination})
-    return destination;
-}
-
-
-async function regenerateAll(): Promise<void> {
-    let collections = db.doc("Users/rTw4N7tjtaxOR6y0YC98").collection("items");
-
-    let doc = collections.doc("EvPNiTxn7x4YQbY8Bvuo");
-    const snapshot = await doc.get();
-
-    let result = await collections
-        .orderBy("timestamp", "asc")
-        .startAt(snapshot)
-        .get();
-    
-    let total = result.docs.length;
-    let current = 1;
-    for (let doc of result.docs) {
-        console.log(`${current}/${total} ${doc.id}`);
-        let file = await downloadImage(doc.id);
-        try {
-            await indexHandler.addDataPoint(file, doc.id);
-        } catch (err) {
-            console.log(err);
-            return;
-        } finally {
-            fs.rm(path.dirname(file), {recursive: true, force: true}, (err) => {if (err) {console.log(err)}});
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 100));
-        current += 1;
-    }
-}
-
-
 async function main () {
-    if (process.argv.length > 2) {
-        if (process.argv[2] === "gen") {
-            console.log("Generating vector...");
-            try {
-                await getVectors();
-            } catch (err) {
-                console.log(err);
-            }
-        }
-        else if (process.argv[2] === "add") {
-            try {
-                console.log(`Adding data point: ${process.argv[3]}...`);
-                await addDataPoint(process.argv[3]);
-            } catch (error) {
-                console.log(error);
-            }
-        }
-    } else {
-        indexHandler
-            .startVectorizer()
-            .then(() => {
-                const port = parseInt(process.env.PORT || "0") || 8080;
-                app.listen(port, () => {
-                    console.log(`Listening on port ${port}`);
-                });
-            });
-    }
+    await indexHandler.startPyCollector();
+    const port = parseInt(process.env.PORT || "0") || 8080;
+    app.listen(port, () => {
+        console.log(`Listening on port ${port}`);
+    });
 };
 
 

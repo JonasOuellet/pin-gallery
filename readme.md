@@ -55,6 +55,14 @@ Need to activate cloud resource manager api
 
 # Run in a dev container
 
+Pour les utilisateur windows.  Utiliser wsl
+
+1. Installer cuda: https://docs.nvidia.com/cuda/wsl-user-guide/index.html
+2. Installer `tensorflow[and-cuda]` https://www.tensorflow.org/install/pip
+    * ajouter les environement variable https://stackoverflow.com/questions/60208936/cannot-dlopen-some-gpu-libraries-skipping-registering-gpu-devices
+    * a l'ouverture de wsl: https://askubuntu.com/questions/730/how-do-i-set-environment-variables
+3. 
+
 Run this to authentificate the first time
 ```bash
 gcloud auth application-default login

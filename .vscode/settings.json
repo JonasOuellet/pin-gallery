@@ -1,3 +1,4 @@
 {
     "explorer.excludeGitIgnore": true,
+    "python.REPL.enableREPLSmartSend": false,
 }

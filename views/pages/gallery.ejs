@@ -10,6 +10,19 @@
     <input type="radio" id="option-2" class="mdl-radio__button" name="options" value="2">
     <span class="mdl-radio__label">Du plus recent au plus ancien</span>
   </label>
+  <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="option-3">
+    <input type="radio" id="option-3" class="mdl-radio__button" name="options" value="3">
+    <span class="mdl-radio__label">Par ressemblance</span>
+  </label>
+  <div id="similarPagesDiv" style="margin: auto; width: 146px; display: none;">
+    <button class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button--colored" id="similarPagesRem">
+      <i class="material-icons">remove</i>
+    </button>
+    <input type="number" min="1" value="1" style="max-width: 50px;" id="similarPage">
+    <button class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button--colored" id="similarPagesAdd">
+      <i class="material-icons">add</i>
+    </button>
+  </div>
 
   <div id="images"></div>
 

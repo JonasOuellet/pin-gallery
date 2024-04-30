@@ -2,7 +2,6 @@ import * as ai from "@google-cloud/aiplatform";
 import { ProjectsClient } from "@google-cloud/resource-manager";
 import { google } from "@google-cloud/aiplatform/build/protos/protos";
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
-import { readFile} from "fs/promises";
 import { Socket, createServer} from "net";
 import * as fs from "fs";
 
@@ -17,12 +16,32 @@ async function getPortFree(): Promise<number> {
     })
 }
 
-
-interface AiInfo {
-    indexEndPoint: string;
+interface UndeployedAiInfo {
     indexId: string;
+}
+
+
+interface AiInfo extends UndeployedAiInfo{
+    indexEndPoint: string;
     indexApiEndpoint: string;
     deployedIndex: string;
+}
+
+
+interface IPyCollectorCommand {
+    command: string
+}
+
+
+interface IPyCollectorCommandVectorize {
+    command: string,
+    file: string
+}
+
+
+interface IPyCollectorCommandNN extends IPyCollectorCommand {
+    file: string,
+    number?: number,
 }
 
 
@@ -43,15 +62,10 @@ export class IndexHandler {
     _project_id: string
     _region: string
 
-    indexDisplayName: string = "collectorv2"
-    machineType: string = "e2-standard-16"
-    // indexDisplayName: string = "collector"
-    // machineType: string = "e2-standard-2"
-
-    _indexEndPoint: string | null = null;
-    _indexApiEndpoint: string | null = null;
-    _deployedIndex: string | null = null;
-    _indexId: string | null = null;
+    // indexDisplayName: string = "collectorv2"
+    // machineType: string = "e2-standard-16"
+    indexDisplayName: string = "collector"
+    machineType: string = "e2-standard-2"
 
     _pythonProcess: ChildProcessWithoutNullStreams | null = null;
 
@@ -97,7 +111,7 @@ export class IndexHandler {
             })
 
             socket.connect({port: this._pythonPort});
-            socket.write("status", (err) => {
+            socket.write(JSON.stringify({"command": "status"}), (err) => {
                 if (err) {
                     resolve(false);
                 }
@@ -109,13 +123,13 @@ export class IndexHandler {
         return new Promise((resolve, reject) => {resolve()});
     }
 
-    async startVectorizer(): Promise<void> {
+    async startPyCollector(): Promise<void> {
         // spawn process
         // if exit code is not null this means that the process is down.
         if (this._pythonProcess === null || this._pythonProcess.exitCode !== null) {
             this._pythonPort = await getPortFree();
             console.log(`Starting vectorizer on port ${this._pythonPort}`);
-            this._pythonProcess = spawn("python", ["vectorizer.py", "serve", this._pythonPort.toString()]);
+            this._pythonProcess = spawn("python", ["-m", "pycollector", "serve", "--port", this._pythonPort.toString(), "--init"]);
             this._pythonProcess.stdout.on("data", (chunk: Buffer) => console.log(chunk.toString()));
             this._pythonProcess.stderr.on("data", (chunk: Buffer) => console.log(chunk.toString()));
 
@@ -137,9 +151,9 @@ export class IndexHandler {
         }
     }
 
-    async sendVectorizerCommand(command: string): Promise<any> {
+    async sendPyCollectorCommand(command: IPyCollectorCommand): Promise<any> {
         // make sure vectorizer is running
-        await this.startVectorizer();
+        await this.startPyCollector();
         return new Promise((resolve, reject) => {
             let socket = new Socket();
             socket.on("error", (err) => {
@@ -158,7 +172,7 @@ export class IndexHandler {
             })
 
             socket.connect({port: this._pythonPort});
-            socket.write(command, (err) => {
+            socket.write(JSON.stringify(command), (err) => {
                 if (err) {
                     reject(err);
                 }
@@ -174,6 +188,26 @@ export class IndexHandler {
                 return "L'index n'est pas encore cree"
         }
         return "";
+    }
+
+    /*
+        const API_ENDPOINT = "0.northamerica-northeast1-720328317830.vdb.vertexai.goog"
+        const INDEX_ENDPOINT = "projects/720328317830/locations/northamerica-northeast1/indexEndpoints/7034059667999293440"
+        const DEPLOYED_INDEX_ID = "collector_search_indexv2_1702360075969"
+        index id = "projects/720328317830/locations/northamerica-northeast1/indexes/54324670505156608"
+    */
+    async getUndeployedAiInfo(): Promise<[UndeployedAiInfo | null, AiInfoErrType | null]> {
+        let index = await this.index();
+        if (!index) {
+            return [null, AiInfoErrType.IndexDoesntExist];
+        }
+        if (!index.name) {
+            return [null, AiInfoErrType.InvalidDeployedIndex];
+        }
+        const indexId = index.name;
+        return [{
+            indexId: indexId,
+        }, null];
     }
 
     /*
@@ -205,6 +239,7 @@ export class IndexHandler {
         if (!endPoint.deployedIndexes || endPoint.deployedIndexes.length == 0) {
             return [null, AiInfoErrType.IndexNotDeployed];
         }
+
         const deployedIndex = endPoint.deployedIndexes[0];
         if (!deployedIndex.id) {
             return [null, AiInfoErrType.InvalidDeployedIndexId];
@@ -324,7 +359,7 @@ export class IndexHandler {
     }
 
     async generateIndex(): Promise<number> {
-        return this.sendVectorizerCommand("missing").then((res) => {
+        return this.sendPyCollectorCommand({command: "missing"}).then((res) => {
             if (res.error) {
                 return Promise.reject(res.error)
             }
@@ -386,13 +421,29 @@ export class IndexHandler {
             })
     }
 
+    async pyCollectorNN(
+        filename: string,
+        number?: number
+    ): Promise<[string, number][]> {
+        let cmd: IPyCollectorCommandNN = {
+            command: "nearest-neighbors",
+            file: filename,
+            number: number,
+        }
+        return this.sendPyCollectorCommand(cmd).then((result) => {
+            return result.nearest;
+        })
+    }
+
     async vectorizeLocalFile(filename: string): Promise<number[]> {
-        return this.sendVectorizerCommand(`vectorize ${filename}`)
-            .then(async (result: {filepath: string}) => {
+        let command: IPyCollectorCommandVectorize = {
+            command: "vectorize",
+            file: filename,
+        }
+        return this.sendPyCollectorCommand(command)
+            .then(async (result: {vector: number[]}) => {
                 // check if file exists
-                let data = JSON.parse(await readFile(result.filepath, {encoding: 'ascii'}));
-                fs.unlink(result.filepath, (err) => {if (err) {console.log(`Couldn't delete file ${result.filepath}. ${err}`)}});
-                return data;
+                return result.vector
         })
     }
 
@@ -442,7 +493,7 @@ export class IndexHandler {
 
     async addDataPoint(filename: string, id: string) {
         return this.vectorizeLocalFile(filename).then(async (vector) => {
-            const [aiInfo, err] = await this.getAiInfo();
+            const [aiInfo, err] = await this.getUndeployedAiInfo();
             if (err) {
                 return Promise.reject(this.getErrorText(err));
             }
@@ -523,7 +574,7 @@ export class IndexHandler {
     }
 
     async removeItem(id: string): Promise<void> {
-        const [aiInfo, err] = await this.getAiInfo();
+        const [aiInfo, err] = await this.getUndeployedAiInfo();
         if (err) {
             return Promise.reject(this.getErrorText(err));
         }
