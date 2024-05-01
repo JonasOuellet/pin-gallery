@@ -9,7 +9,7 @@
             "type": "debugpy",
             "request": "launch",
             "module": "pycollector",
-            "args": ["update-remote-index"]
+            "args": ["cluster"]
         },
         {
             "type": "node",
@@ -28,51 +28,6 @@
                 "PROJECT_ID": "macarons-410004",
                 "REGION": "northamerica-northeast1",
                 // "USE_PYCOLLECTOR": "1"
-            }
-        },
-        {
-            "name": "vectorize",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "search-engine/vectorizer.py",
-            "args": [
-                "--missing"
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PROJECT_ID": "macarons-410004",
-                "REGION": "northamerica-northeast1"
-            }
-        },
-        {
-            "name": "vectorize update",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "search-engine/vectorizer.py",
-            "args": [
-                "dPljx0DGKcX0FuPmvpRB.png"
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PROJECT_ID": "macarons-410004",
-                "REGION": "northamerica-northeast1"
-            }
-        },
-        {
-            "name": "search",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "vectorizer.py",
-            "args": [
-                "serve"
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "env": {
-                "PROJECT_ID": "macarons-410004",
-                "REGION": "northamerica-northeast1"
             }
         }
     ]

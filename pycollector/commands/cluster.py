@@ -19,4 +19,24 @@ class ClusterCommand(BaseCommand):
         )
 
 
+class ClearClusterCommand(BaseCommand):
+
+    def __init__(self) -> None:
+        super().__init__("clear-cluster")
+
+    def run(self, namespace: Namespace):
+        from .. import core
+        items = core.get_all_items()
+        for x, index in enumerate(items):
+            print(f"\r{x + 1}/{len(items)} - {index.id}", end='', flush=True)
+
+            index.reference.update({
+                "cluster": -1,
+                "distance": 0 
+            })
+
+        print("\nDone!", flush=True)
+
+
 register(ClusterCommand())
+register(ClearClusterCommand())

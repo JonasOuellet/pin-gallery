@@ -22,66 +22,57 @@ def _cluster(
 
 
 def _split_cluster(
-    cluster_items: np.ndarray | None,
     cluster_id: int,
     datapoints: np.ndarray,
     indexes: list[str],
     size: int,
-    tab: str = '',
-    dept: int = 1
+    dept: int = 1,
+    data_reduction=False
 ) -> int:
-    if cluster_items is not None:
-        nncluster = round(cluster_items.shape[0] / size)
-    else:
-        nncluster = round(datapoints.shape[0] / size)
+    cluster_count = round(datapoints.shape[0] / size)
 
-    print(f"{tab}Splitting cluster {cluster_id} in {nncluster}")
+    tab = '    ' * (dept - 1)
 
-    if cluster_items is not None:
-        new_dt = []
-        new_indexes = []
-        for _id in cluster_items:
-            new_dt.append(datapoints[_id])
-            new_indexes.append(indexes[_id])
+    print(f"{tab}Splitting cluster {cluster_id} in {cluster_count}")
 
-        new_ndt = np.array(new_dt, dtype=np.float32)
-    else:
-        new_ndt = datapoints
-        new_indexes = indexes
+    if data_reduction:
+        dimension = min(datapoints.shape[0], int(datapoints.shape[1] / 2))
+        print(f"{tab}Appling PCA to reduce dimension from {datapoints.shape[1]} to {dimension}")
+        pca = PCA(dimension)
+        datapoints = pca.fit_transform(datapoints)
 
-    new_cluster, new_dist = _cluster(new_ndt, nncluster)
-    nncluster = np.max(new_cluster)
+    clusters, distances = _cluster(datapoints, cluster_count)
+    cluster_count = np.max(clusters)
 
-    for ncluster_id in range(nncluster + 1):
-        cluster_items = np.nonzero(new_cluster == ncluster_id)[0]
-        print(f"{tab}Cluster: {cluster_id} contain {len(cluster_items)} items.")
+    for cluster_idx in range(cluster_count + 1):
+        cluster_item_indexes = np.nonzero(clusters == cluster_idx)[0]
+        print(f"{tab}Cluster: {cluster_id} contain {len(cluster_item_indexes)} items.")
 
         # check for one value or less value
-        numitem = len(cluster_items)
+        numitem = len(cluster_item_indexes)
         if numitem <= 1:
             print(f"{tab}Skipping {numitem} items cluster..")
-            for idx in cluster_items:
-                dbid = new_indexes[idx]
+            for idx in cluster_item_indexes:
+                dbid = indexes[idx]
                 doc = core.item_collection.document(dbid)
                 doc.update({
                     "cluster": -1,
                     "distance": 0 
                 })
-        elif dept <= 3 and len(cluster_items) > int(size * 1.5):
+        elif dept <= 3 and len(cluster_item_indexes) > int(size * 1.5):
             cluster_id = _split_cluster(
-                cluster_items,
                 cluster_id,
-                datapoints,
-                indexes,
+                np.array([datapoints[idx] for idx in cluster_item_indexes], dtype=np.float32),
+                [indexes[idx] for idx in cluster_item_indexes],
                 size,
-                tab + '  ',
-                dept + 1
+                dept + 1,
+                data_reduction
             )
         else:
             print(f"{tab}Count is good.")
-            for idx in cluster_items:
-                dbid = new_indexes[idx]
-                dist = float(new_dist[idx][ncluster_id])
+            for idx in cluster_item_indexes:
+                dbid = indexes[idx]
+                dist = float(distances[idx][cluster_idx])
                 doc = core.item_collection.document(dbid)
                 doc.update({
                     "cluster": cluster_id,
@@ -113,29 +104,9 @@ def cluster(
 
     if len(indexes) != datapoints.shape[0]:
         raise ValueError("Inconsistences in data.")
-    
-    if not no_data_reduction:
-        print("Appling PCA to reduce dimension by 50%")
-        dimension = int(datapoints.shape[1] / 2)
-
-        pca = PCA(dimension)
-        datapoints = pca.fit_transform(datapoints)
 
     num_vector = len(indexes)
     print(f"{num_vector} datapoints found.")
-    _split_cluster(None, 0, datapoints, indexes, size)
-
-    # for dbid, clustid, distance in zip(indexes, clusterings, distances):
-    #     # get the number of items in this cluster
-
+    _split_cluster(0, datapoints, indexes, size, data_reduction=not no_data_reduction)
 
     return
-        # distance = float(distance[cluster])
-        # print(dbid, cluster, distance)
-
-        # doc = core.item_collection.document(dbid)
-        # if doc.get().exists:
-        #     doc.update({
-        #         "cluster": int(cluster),
-        #         "distance": distance
-        #     })

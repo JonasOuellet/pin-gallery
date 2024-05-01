@@ -83,15 +83,22 @@ def decode_text(data: Iterable[float]) -> dict[str, int]:
     return out
 
 
-def get_all_items(start_id: str | None = None, start_after_id: str | None = None):
+def get_all_items(
+    start_id: str | None = None,
+    start_after_id: str | None = None,
+    fields: Iterable[str] | None = None
+):
     query = item_collection.order_by("timestamp", direction="ASCENDING")
+    if fields is None:
+        fields = []
+    query = query.select(fields)
     if start_id:
         doc = item_collection.document(start_id)
-        snapshot = doc.get()
+        snapshot = doc.get(["timestamp"])
         query = query.start_at(snapshot)
     elif start_after_id:
         doc = item_collection.document(start_after_id)
-        snapshot = doc.get()
+        snapshot = doc.get(["timestamp"])
         query = query.start_after(snapshot)
     return query.get()
 

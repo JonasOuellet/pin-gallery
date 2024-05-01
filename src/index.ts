@@ -547,7 +547,8 @@ app.get('/items/read/:order/:count/:start?', async (req, res) => {
         }
         let user = adminUser.docs[0].data();
         let collections = db.doc(`Users/${user.id}`).collection("items");
-        let query = collections.orderBy("timestamp", req.params.order as any);
+        // do not return any fields
+        let query = collections.select().orderBy("timestamp", req.params.order as any);
         if (req.params.start) {
             let doc = collections.doc(req.params.start);
             const snapshot = await doc.get();
@@ -642,10 +643,6 @@ app.get('/deployindex', async (req, res) => {
 
 app.get("/gallery", async (req, res) => {
     if (req.user && req.isAuthenticated()) {
-        // let user = db.doc(`Users/${(req.user as any).id}`);
-        // let data = await user.collection("items").count().get();
-        // res.locals.nbitems = data.data().count;
-        // res.locals.similarCount = (await user.get()).get(SIMILAR_ITEM_SEARCH_FIELD) || 5;
         return res.render('pages/gallery');
     }
     return res.render("pages/login");
@@ -653,10 +650,6 @@ app.get("/gallery", async (req, res) => {
 
 app.get("/duplicate", async (req, res) => {
     if (req.user && req.isAuthenticated()) {
-        // let user = db.doc(`Users/${(req.user as any).id}`);
-        // let data = await user.collection("items").count().get();
-        // res.locals.nbitems = data.data().count;
-        // res.locals.similarCount = (await user.get()).get(SIMILAR_ITEM_SEARCH_FIELD) || 5;
         return res.render('pages/duplicate');
     }
     return res.render("pages/login");
@@ -670,7 +663,7 @@ app.get('/duplicates/read/:count/:start?', async (req, res) => {
     try {
         let count = parseInt(req.params.count);
         let collections = db.doc(`Users/${user.id}`).collection("duplicates");
-        let query = collections.orderBy("timestamp", "asc");
+        let query = collections.select().orderBy("timestamp", "asc");
         if (req.params.start) {
             let doc = collections.doc(req.params.start);
             const snapshot = await doc.get();
@@ -729,6 +722,28 @@ app.get("/duplicate/create/:id", async (req, res) => {
         }
     }
     return res.status(401).send("unautorized")
+});
+
+
+app.get('/duplicate/delete/:id', async (req, res) => {
+    let user = req.user as User;
+    if (user === undefined || req.isUnauthenticated()) {
+        return res.status(401).send("unauthorized")
+    }
+    // remove it from the db
+    try {
+        await db.doc(`Users/${user.id}`).collection("duplicates").doc(req.params.id).delete();
+    } catch (err) {
+        return res.status(400).send("Impossible de supprimer l'item de la base de donnee.")
+    }
+    
+    try {
+        await bucket.file(`${req.params.id}.png`).delete({ignoreNotFound: false});
+    } catch (err) {
+        return res.status(400).send("Impossible de supprimer l'item du stockage.")
+    }
+
+    return res.send("Item removed with success.")
 });
 
 

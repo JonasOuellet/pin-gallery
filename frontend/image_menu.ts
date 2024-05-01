@@ -35,7 +35,8 @@ function customImageMenu(
     let [
         openInNewTab,
         showMoreInfo,
-        addToDupp
+        addToDupp,
+        deleteAction
     ] = menu.children();
     openInNewTab.onclick = (ev) => {
         closeMenu();
@@ -47,10 +48,10 @@ function customImageMenu(
         window.open(`/item/${imageID}`, '_blank');
     }
 
-    addToDupp.onclick = (ev) => {
+    function deleteImage(ev: MouseEvent, dialogId: string, getUrl: string) {
         closeMenu();
         // popup the dialog
-        let dialog = $("#deletedialog");
+        let dialog = $(dialogId);
         let dialogElem = dialog.get(0) as HTMLDialogElement;
         let dialogImg = $("img", dialog).get(0) as HTMLImageElement;
         dialogImg.src =  imgElement.src;
@@ -58,7 +59,7 @@ function customImageMenu(
         cancelbtn.onclick = () => {dialogElem.close()};
         okbtn.onclick = () => {
             $.ajax({
-                url: `/duplicate/create/${imageID}`,
+                url: `${getUrl}${imageID}`,
                 method: "GET",
                 processData: false,
                 contentType: false,
@@ -83,6 +84,16 @@ function customImageMenu(
         ev.preventDefault();
         ev.stopPropagation();
         ev.stopImmediatePropagation();
+    };
+
+    addToDupp.onclick = (ev) => {
+        deleteImage(ev, "#duplicatedialog", "/duplicate/create/");
     }
+    
+    deleteAction.onclick = (ev) => {
+        deleteImage(ev, "#deletedialog", "/item/delete/");
+
+    }
+
     event.preventDefault();
 }
