@@ -81,7 +81,7 @@ class LocalIndex(BaseCommand):
             print("Verifying existance of ids...")
             to_remove: list[tuple[int, str]] = []
             for x, _id in enumerate(ids):
-                if not core.item_collection.document(_id).get([]).exists:
+                if not core.get_item_collection().document(_id).get([]).exists:
                     to_remove.append((x, _id))
 
                 print(f"\r{x + 1}/{len(ids)} - {_id}", end='', flush=True)

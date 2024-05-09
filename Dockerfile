@@ -12,11 +12,12 @@ RUN apt-get install -y nodejs
 # Copy local code to the container image.
 WORKDIR collector-web-app
 
-COPY ./vectorizer.py ./vectorizer.py
+COPY ./pycollector ./pycollector
 COPY ./requirement.txt ./requirement.txt
 
 # install requirements
-RUN python -m pip install -r requirement.txt
+RUN python -m pip install --root-user-action=ignore --upgrade pip
+RUN python -m pip install --root-user-action=ignore -r requirement.txt
 
 # copy only usefull stuff
 COPY ./out ./out

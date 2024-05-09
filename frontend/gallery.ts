@@ -1,17 +1,28 @@
-type Order = "asc" | "desc" | "cluster";
-
-interface IData {
-    images: string[];
-    start: string;
-}
-
 $(() => {
+    type Order = "asc" | "desc";
+    
+    interface IData {
+        images: string[];
+        start: string;
+    }
+
     let lastFetch: string | undefined = undefined;
     let loading = false;
     let order: Order = "asc";
 
     let imagesElem = $("#images").get(0) as HTMLDivElement;
-    let pageInput = $("#similarPage").get(0) as HTMLInputElement;
+    let textElem = $("#sample1").get(0) as HTMLInputElement;
+    textElem.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            clear()
+            fetch();
+        }
+    })
+
+    $("#searchBtn").on("click", () => {
+        clear();
+        fetch();
+    })
 
     function clear() {
         loading = false;
@@ -38,22 +49,22 @@ $(() => {
     }
 
     function fetch() {
-        let url = "";
         let count = 100;
-        if (order == "cluster") {
-            let page = pageInput.valueAsNumber;
-            url = `/items/read/similar/${page}`;
-        } else {
-            url = `/items/read/${order}/${count}`;
+        let url = `/items/read/${order}/${count}`;
 
-        }
         if (lastFetch) {
-            url += `/${lastFetch}`
+            url += `/${lastFetch}`;
+        }
+
+        let data: any | undefined = undefined;
+        if (textElem.value) {
+            data = {text: textElem.value};
         }
 
         $.ajax({
             type: "GET",
             url: url,
+            data: data,
             dataType: 'json',
             success: processRequest,
             error: (data) => {
@@ -64,18 +75,28 @@ $(() => {
     
     fetch();
 
-    window.addEventListener("scroll", (event) => {
-        if (loading || lastFetch === undefined) {
-            return;
-        }
-        const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+    function installScrollEvent() {
+        let container = $(".mdl-layout__container").get(0);
+        if (container && container.children.length >= 1) {
+            let child = container.children[0];
+            child.addEventListener("scroll", (event) => {
+                if (loading || lastFetch === undefined) {
+                    return;
+                }
+                const { scrollTop, scrollHeight, clientHeight } = child;
+                if (clientHeight + scrollTop >= scrollHeight - 5) {
+                    // show the loading animation
+                    loading = true;
+                    fetch();
+                }
+            });
+        } else {
+            requestAnimationFrame(installScrollEvent);
+        };
+    }
 
-        if (clientHeight + scrollTop >= scrollHeight - 5) {
-            // show the loading animation
-            loading = true;
-            fetch();
-        }
-    })
+    installScrollEvent();
+
 
     function setMethod(m: Order) {
         order = m;
@@ -83,26 +104,6 @@ $(() => {
         fetch();
     }
 
-    function pageChanged() {
-        clear();
-        fetch();
-    };
-
-    pageInput.addEventListener("change", (e) => {
-        pageChanged();
-    })
-
-    $("#similarPagesAdd").on("click", (e) => {
-        pageInput.valueAsNumber += 1;
-        pageChanged();
-    })
-    $("#similarPagesRem").on("click", (e) => {
-        let result = pageInput.valueAsNumber - 1;
-        if (result >= 1) {
-            pageInput.valueAsNumber = result;
-            pageChanged();
-        }
-    })
     
     $("#option-1").on("change", (event) => {
         setMethod("asc");
@@ -114,8 +115,4 @@ $(() => {
         $("#similarPagesDiv").hide();
     });
     
-    $("#option-3").on("change", (event) => {
-        setMethod("cluster");
-        $("#similarPagesDiv").show();
-    });
 })

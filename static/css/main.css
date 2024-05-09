@@ -1,0 +1,30 @@
+.add_new_card {
+    width: 60%;
+    min-width: 800px;
+    margin-top: 60px;
+    margin: auto;
+    display: none;
+}
+
+
+.add_new_card_canvas {
+    max-width: 256px;
+    margin: auto;
+    aspect-ratio: 1/1;
+    display: flex;
+}
+
+
+@media screen and (max-width: 1024px) {
+    .mdl-layout__header {
+        display: flex;
+    }
+
+    .mdl-layout__tab-bar-container {
+        display: none;
+    }
+
+    .mdl-layout__drawer-button {
+        color: white;
+    }
+}

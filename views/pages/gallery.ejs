@@ -1,7 +1,5 @@
 <%- include('../partials/head') %>
 
-  <h1>Galerie</h1>
-
   <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="option-1">
     <input type="radio" id="option-1" class="mdl-radio__button" name="options" value="1" checked>
     <span class="mdl-radio__label">Du plus ancien au plus recent</span>
@@ -10,24 +8,25 @@
     <input type="radio" id="option-2" class="mdl-radio__button" name="options" value="2">
     <span class="mdl-radio__label">Du plus recent au plus ancien</span>
   </label>
-  <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="option-3">
-    <input type="radio" id="option-3" class="mdl-radio__button" name="options" value="3">
-    <span class="mdl-radio__label">Par ressemblance</span>
-  </label>
-  <div id="similarPagesDiv" style="margin: auto; width: 146px; display: none;">
-    <button class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button--colored" id="similarPagesRem">
-      <i class="material-icons">remove</i>
-    </button>
-    <input type="number" min="1" value="1" style="max-width: 50px;" id="similarPage">
-    <button class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button--colored" id="similarPagesAdd">
-      <i class="material-icons">add</i>
+  <div style="display: inline-block; padding-left: 40px;">
+    <div class="mdl-textfield mdl-js-textfield">
+      <input class="mdl-textfield__input" type="text" id="sample1">
+      <label class="mdl-textfield__label" for="sample1">Text...</label>
+    </div>
+    <button class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button--colored" id="searchBtn">
+      <i class="material-icons">search</i>
     </button>
   </div>
 
   <div id="images"></div>
 
-  <%- include('../partials/simple_dialog.ejs') %>
-  <%- include('../partials/image_menu.ejs') %>
+</div>
+</main>
+</div>
 
-  <script src="/js/gallery.js"></script>
-  <%- include('../partials/footer') %>
+<%- include('../partials/simple_dialog.ejs') %>
+<%- include('../partials/image_menu.ejs') %>
+
+<script src="/js/gallery.js"></script>
+</body>
+</html>

@@ -1,22 +1,40 @@
-from typing import Iterable
+from typing import Iterable, Optional, TYPE_CHECKING
 import os
 from pathlib import Path
 
 import numpy as np
 
-from google.cloud import storage, firestore, vision
+
+if TYPE_CHECKING:
+    from google.cloud import storage, firestore
 
 
 PROJECT_ID = os.environ.get("PROJECT_ID", "macarons-410004")
 
+BUCKET: Optional["storage.Bucket"] = None
 
-storage_client = storage.Client(PROJECT_ID)
-bucket = storage_client.get_bucket(f"{PROJECT_ID}-collector")
+FIRESTORE_DB: Optional["firestore.Client"] = None
 
-database = firestore.Client(PROJECT_ID, database="collector")
-item_collection = database.collection("Users/rTw4N7tjtaxOR6y0YC98/items")
 
-vision_client = vision.ImageAnnotatorClient()
+def get_bucket():
+    global BUCKET
+    if BUCKET is None:
+        from google.cloud import storage
+        storage_client = storage.Client(PROJECT_ID)
+        BUCKET = storage_client.get_bucket(f"{PROJECT_ID}-collector")
+    return BUCKET
+
+
+def get_database():
+    global FIRESTORE_DB
+    if FIRESTORE_DB is None:
+        from google.cloud import firestore
+        FIRESTORE_DB = firestore.Client(PROJECT_ID, database="collector")
+    return FIRESTORE_DB
+
+
+def get_item_collection():
+    return get_database().collection("Users/rTw4N7tjtaxOR6y0YC98/items")
 
 
 class DownloadOrLocalImage:
@@ -31,7 +49,7 @@ class DownloadOrLocalImage:
         if self.local:
             return str(self.filepath)
 
-        blob = bucket.get_blob(self.filename)
+        blob = get_bucket().get_blob(self.filename)
         blob.download_to_filename(self.filename)
         return self.filename
 
@@ -43,6 +61,9 @@ class DownloadOrLocalImage:
 def detect_text(path: str) -> list[str]:
     """Detect the text in the specified local image"""
     # https://cloud.google.com/vision/docs/ocr?hl=fr
+    from google.cloud import vision
+
+    vision_client = vision.ImageAnnotatorClient()
 
     with open(path, 'rb') as image_file:
         image = vision.Image(content=image_file.read())
@@ -88,6 +109,7 @@ def get_all_items(
     start_after_id: str | None = None,
     fields: Iterable[str] | None = None
 ):
+    item_collection = get_item_collection()
     query = item_collection.order_by("timestamp", direction="ASCENDING")
     if fields is None:
         fields = []
@@ -125,12 +147,12 @@ def write_datapoints(arr: np.ndarray):
 def upload_local_index():
     for file in ['ids.txt', 'datapoints.bin']:
         print(f"uploading {file}...")
-        blob = bucket.blob(f'embeddings/{file}')
+        blob = get_bucket().blob(f'embeddings/{file}')
         blob.upload_from_filename(file)
 
 
 def download_local_index():
     for file in ['ids.txt', 'datapoints.bin']:
         print(f"downloading {file}...")
-        blob = bucket.blob(f'embeddings/{file}')
+        blob = get_bucket().blob(f'embeddings/{file}')
         blob.download_to_filename(file)

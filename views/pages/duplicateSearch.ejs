@@ -1,13 +1,6 @@
 <%- include('../partials/head') %>
 
-<p>Trouver les doublons dans votre collections. Ajouter une image a partir de la source desire et faite une rechercher pour trouver les items similaires.</p>
-
-<p>Votre collection compte actuellement <span id="itemcount"><%-nbitems%></span> items</p>
-
-<div <% if (nbitems == 0) { %> style="display: none;" <% } %>>
-    <h3>Item ajoute recemment</h3>
-    <div id="recentlyadded"></div>
-</div>
+<p><span id="itemcount"><%-nbitems%></span> doublons restants.</p>
 
 
 <h3>Status de l'index</h3>
@@ -22,9 +15,6 @@
 </div>
 
 <div id="addnewitemcard" class="demo-card-wide mdl-card mdl-shadow--2dp add_new_card">
-    <div class="mdl-card__title">
-        <h2 class="mdl-card__title-text">Ajout d'un nouvel item</h2>
-    </div>
     <div id="camera-panel" style="margin-bottom: 40px;">
         <video id="video" style="max-width: 60%; display: block; margin-left: auto; margin-right: auto; margin-top: 20px;">Video stream not available.</video>
         <div style="text-align: center; margin-top: 20px;">
@@ -50,7 +40,7 @@
         <button id="index_search"
             class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored"
             style="display: none; margin: 0px 10px;"
-        > Rechercher <%-similarCount%> items similaires
+        > Rechercher <%-similarCount%> doublons similaires
         </button>
         <button id="index_search_add"
             class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button"
@@ -60,10 +50,6 @@
         <div id="imageSearchResult" style="padding-top: 20px; padding-bottom: 20px;">
             <div id="imageSearchBar" style="margin: auto; display: none;" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
         </div>
-    </div>
-
-    <div class="mdl-card__actions mdl-card--border" style="text-align: center;">
-        <input class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" id="addnewitem" type="button" value="Ajouter">
     </div>
 </div>
 
@@ -98,7 +84,7 @@
 <%- include('../partials/simple_dialog.ejs') %>
 <%- include('../partials/image_menu.ejs') %>
 
-<script src="/js/index.js"></script>
+<script src="/js/duplicateSearch.js"></script>
 
 </body>
 </html>

@@ -54,7 +54,7 @@ def _split_cluster(
             print(f"{tab}Skipping {numitem} items cluster..")
             for idx in cluster_item_indexes:
                 dbid = indexes[idx]
-                doc = core.item_collection.document(dbid)
+                doc = core.get_item_collection().document(dbid)
                 doc.update({
                     "cluster": -1,
                     "distance": 0 
@@ -73,7 +73,7 @@ def _split_cluster(
             for idx in cluster_item_indexes:
                 dbid = indexes[idx]
                 dist = float(distances[idx][cluster_idx])
-                doc = core.item_collection.document(dbid)
+                doc = core.get_item_collection().document(dbid)
                 doc.update({
                     "cluster": cluster_id,
                     "distance": dist

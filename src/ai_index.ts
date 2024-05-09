@@ -56,19 +56,12 @@ export enum AiInfoErrType {
 }
 
 
-export class IndexHandler {
-    _indexClient: ai.IndexServiceClient
-    _endPointClient: ai.IndexEndpointServiceClient 
+class Globals {
     _project_id: string
     _region: string
 
-    // indexDisplayName: string = "collectorv2"
-    // machineType: string = "e2-standard-16"
-    indexDisplayName: string = "collector"
-    machineType: string = "e2-standard-2"
-
     _pythonProcess: ChildProcessWithoutNullStreams | null = null;
-
+    
     _pythonPort: number = 0;
 
     constructor() {
@@ -80,16 +73,6 @@ export class IndexHandler {
             throw new Error("REGION env var not set.")
         }
         this._region = process.env.REGION;
-
-        this._indexClient = new ai.IndexServiceClient({
-            apiEndpoint: `${this._region}-aiplatform.googleapis.com`,
-            projectId: this._project_id
-        })
-        
-        this._endPointClient = new ai.IndexEndpointServiceClient ({
-            apiEndpoint: `${this._region}-aiplatform.googleapis.com`,
-            projectId: this._project_id
-        });
     }
 
     async testVectorizer(): Promise<boolean> {
@@ -180,6 +163,67 @@ export class IndexHandler {
         });
     }
 
+    _parentPath(): string {
+        return `projects/${this._project_id}/locations/${this._region}`;
+    }
+
+    async projectNumber(): Promise<string> {
+        const client = new ProjectsClient();
+        let [project] = await client.getProject({
+            name: `projects/${this._project_id}`
+        })
+        if (!project.name) {
+            return Promise.reject("Error finding project.")
+        }
+        return (project.name as any).split('/')[1];
+    }
+
+}
+
+let GLOBAL_INST: Globals | null = null;
+
+function getGlobal(): Globals {
+    if (GLOBAL_INST === null) {
+        GLOBAL_INST = new Globals();
+    }
+    return GLOBAL_INST;
+}
+
+
+export class IndexHandler {
+    _indexClient: ai.IndexServiceClient
+    _endPointClient: ai.IndexEndpointServiceClient 
+
+    // indexDisplayName: string = "collectorv2"
+    // machineType: string = "e2-standard-16"
+    indexDisplayName: string = "collector"
+    machineType: string = "e2-standard-2"
+
+    endpointDisplayName: string | undefined = undefined;
+
+
+    constructor(indexName?: string, endPointName?: string) {
+        let glob = getGlobal();
+        this._indexClient = new ai.IndexServiceClient({
+            apiEndpoint: `${glob._region}-aiplatform.googleapis.com`,
+            projectId: glob._project_id
+        })
+        
+        this._endPointClient = new ai.IndexEndpointServiceClient ({
+            apiEndpoint: `${glob._region}-aiplatform.googleapis.com`,
+            projectId: glob._project_id
+        });
+
+        if (indexName) {
+            this.indexDisplayName = indexName;
+        }
+
+        if (endPointName) {
+            this.endpointDisplayName = endPointName
+        }
+
+    }
+
     getErrorText(error: AiInfoErrType): string {
         switch (error) {
             case AiInfoErrType.IndexNotDeployed:
@@ -255,24 +299,11 @@ export class IndexHandler {
         }, null];
     }
 
-    _parentPath(): string {
-        return `projects/${this._project_id}/locations/${this._region}`;
-    }
 
-    async projectNumber(): Promise<string> {
-        const client = new ProjectsClient();
-        let [project] = await client.getProject({
-            name: `projects/${this._project_id}`
-        })
-        if (!project.name) {
-            return Promise.reject("Error finding project.")
-        }
-        return (project.name as any).split('/')[1];
-    }
 
     async index(): Promise<google.cloud.aiplatform.v1.IIndex | null> {
         let iterable = this._indexClient.listIndexesAsync({
-            parent: this._parentPath()
+            parent: getGlobal()._parentPath()
         });
         for await (const response of iterable) {
             if (response.displayName === this.indexDisplayName) {
@@ -288,10 +319,10 @@ export class IndexHandler {
 
     async endPoint(): Promise<google.cloud.aiplatform.v1.IIndexEndpoint | null> {
         let iterable = this._endPointClient.listIndexEndpointsAsync({
-            parent: this._parentPath()
+            parent: getGlobal()._parentPath()
         });
         for await (const response of iterable) {
-            if (response.displayName === this.indexDisplayName) {
+            if (response.displayName === (this.endpointDisplayName || this.indexDisplayName)) {
                 return response;
             }
         }
@@ -304,12 +335,14 @@ export class IndexHandler {
             return null;
         }
 
+        let glob = getGlobal()
+
         index = new google.cloud.aiplatform.v1.Index({
             displayName: this.indexDisplayName,
             indexUpdateMethod: "STREAM_UPDATE",
             metadata: { structValue: {
                 fields: {
-                    contentsDeltaUri: {stringValue: `gs://${this._project_id}-collector/embeddings/`},
+                    contentsDeltaUri: {stringValue: `gs://${glob._project_id}-collector/embeddings/`},
                     config: {structValue: {
                         fields: {
                             dimensions: {numberValue: 1280},
@@ -329,7 +362,7 @@ export class IndexHandler {
         });
 
         const [operation] = await this._indexClient.createIndex({
-            parent: this._parentPath(),
+            parent: glob._parentPath(),
             index: index
         });
         if (operation.name){
@@ -346,9 +379,9 @@ export class IndexHandler {
             return null;
         }
         const [operation] = await this._endPointClient.createIndexEndpoint({
-            parent: this._parentPath(),
+            parent: getGlobal()._parentPath(),
             indexEndpoint: {
-                displayName: this.indexDisplayName
+                displayName: this.endpointDisplayName || this.indexDisplayName
             }
         });
         if (operation.name) {
@@ -359,7 +392,7 @@ export class IndexHandler {
     }
 
     async generateIndex(): Promise<number> {
-        return this.sendPyCollectorCommand({command: "missing"}).then((res) => {
+        return getGlobal().sendPyCollectorCommand({command: "missing"}).then((res) => {
             if (res.error) {
                 return Promise.reject(res.error)
             }
@@ -430,7 +463,7 @@ export class IndexHandler {
             file: filename,
             number: number,
         }
-        return this.sendPyCollectorCommand(cmd).then((result) => {
+        return getGlobal().sendPyCollectorCommand(cmd).then((result) => {
             return result.nearest;
         })
     }
@@ -441,7 +474,7 @@ export class IndexHandler {
             file: filename
         };
 
-        return this.sendPyCollectorCommand(command);
+        return getGlobal().sendPyCollectorCommand(command);
     }
 
     async vectorizeLocalFile(filename: string): Promise<number[]> {
@@ -449,7 +482,7 @@ export class IndexHandler {
             command: "vectorize",
             file: filename,
         }
-        return this.sendPyCollectorCommand(command)
+        return getGlobal().sendPyCollectorCommand(command)
             .then(async (result: {vector: number[]}) => {
                 // check if file exists
                 return result.vector
@@ -469,7 +502,7 @@ export class IndexHandler {
 
             let matchClient = new ai.MatchServiceClient({
                 apiEndpoint: apiInfo.indexApiEndpoint,
-                projectId: this._project_id
+                projectId: getGlobal()._project_id
             });
             return matchClient.findNeighbors({
                 deployedIndexId: apiInfo.deployedIndex,
@@ -606,7 +639,7 @@ export class IndexHandler {
 
         let matchClient = new ai.MatchServiceClient({
             apiEndpoint: apiInfo.indexApiEndpoint,
-            projectId: this._project_id
+            projectId: getGlobal()._project_id
         });
 
         let stream = fs.createWriteStream("datapoints.txt");

@@ -18,6 +18,8 @@ export interface User {
     id: string,
     deployOperation: string | null,
     undeployOperation: string | null,
+    dupDeployOperation: string | null | undefined,
+    dupUndeployOperation: string | null | undefined,
     createIndexOperation: string | null,
     createEndPointOpreation: string | null
 }

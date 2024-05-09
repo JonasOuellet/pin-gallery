@@ -1,4 +1,9 @@
 $(() => {
+    interface IData {
+        images: string[];
+        start: string;
+    }
+
     let lastFetch: string | undefined = undefined;
     let loading = false;
     let imagesElem = $("#images").get(0) as HTMLDivElement;
@@ -110,16 +115,27 @@ $(() => {
     
     fetch();
 
-    window.addEventListener("scroll", (event) => {
-        if (loading || lastFetch === undefined) {
-            return;
-        }
-        const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+    function installScrollEvent() {
+        let container = $(".mdl-layout__container").get(0);
+        if (container && container.children.length >= 1) {
+            let child = container.children[0];
+            child.addEventListener("scroll", (event) => {
+                if (loading || lastFetch === undefined) {
+                    return;
+                }
+                const { scrollTop, scrollHeight, clientHeight } = child;
+                if (clientHeight + scrollTop >= scrollHeight - 5) {
+                    console.log("fetching...")
+                    // show the loading animation
+                    loading = true;
+                    fetch();
+                }
+            });
+        } else {
+            requestAnimationFrame(installScrollEvent);
+        };
+    }
 
-        if (clientHeight + scrollTop >= scrollHeight - 5) {
-            // show the loading animation
-            loading = true;
-            fetch();
-        }
-    })
+    installScrollEvent();
+
 })

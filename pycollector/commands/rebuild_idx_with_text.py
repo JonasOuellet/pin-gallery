@@ -24,7 +24,7 @@ class RebuildIndexes(BaseCommand):
 
         for x, (_id, data) in enumerate(zip(ids, b0datas), 1):
             print(f"{round((x/total) * 100)}% ({x} / {total}) {_id}")
-            doc = core.item_collection.document(_id)
+            doc = core.get_item_collection().document(_id)
             texts = doc.get(["text"]).get("text")
             if texts is None:
                 to_remove.append((x - 1, _id))

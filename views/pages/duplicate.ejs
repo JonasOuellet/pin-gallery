@@ -1,27 +1,29 @@
 <%- include('../partials/head') %>
 
-  <h1>Doublons</h1>
-
   <div id="images"></div>
 
+</div>
+</main>
+</div>
 
-  <ul id="image_menu" class="mdl-menu mdl-menu--bottom-left mdl-js-menu" style="display: none;">
-    <li class="mdl-menu__item">Supprimer</li>
-  </ul>
-  
-  <dialog id="deletedialog" class="mdl-dialog" style="width: 30%;">
-      <h2 class="mdl-dialog__title">Supression</h2>
-      <div class="mdl-dialog__content">
-          <p>Etes-vous sur de vouloir supprimer cet item des doublons?</p>
-          <img style="max-width: 128px; max-height: 128px; margin: auto; display: block;">
-      </div>
-      <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
-          <button type="button" class="mdl-button">Oui</button>
-          <button type="button" class="mdl-button">Non</button>
-      </div>
-  </dialog>
+<ul id="image_menu" class="mdl-menu mdl-menu--bottom-left mdl-js-menu" style="display: none;">
+  <li class="mdl-menu__item">Supprimer</li>
+</ul>
 
-  <%- include('../partials/simple_dialog.ejs') %>
+<dialog id="deletedialog" class="mdl-dialog" style="width: 30%;">
+  <h2 class="mdl-dialog__title">Supression</h2>
+  <div class="mdl-dialog__content">
+      <p>Etes-vous sur de vouloir supprimer cet item des doublons?</p>
+      <img style="max-width: 128px; max-height: 128px; margin: auto; display: block;">
+  </div>
+  <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
+      <button type="button" class="mdl-button">Oui</button>
+      <button type="button" class="mdl-button">Non</button>
+  </div>
+</dialog>
 
-  <script src="/js/duplicate.js"></script>
-  <%- include('../partials/footer') %>
+<%- include('../partials/simple_dialog.ejs') %>
+
+<script src="/js/duplicate.js"></script>
+</body>
+</html>

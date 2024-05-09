@@ -10,12 +10,14 @@ class ClusterCommand(BaseCommand):
     def get_parser(self) -> ArgumentParser:
         parser = super().get_parser()
         parser.add_argument('-s', '--size', type=int, default=20)
+        parser.add_argument('-n', '--no-reduction', action="store_true")
         return parser
 
     def run(self, namespace: Namespace):
         from ..clustering import cluster
         cluster(
-            size=namespace.size
+            size=namespace.size,
+            no_data_reduction=namespace.no_reduction
         )
 
 

@@ -72,3 +72,12 @@ Once logged set the current project
 ```bash
 gcloud config set project $PROJECT_ID
 ```
+
+# Using WSL
+
+Run this command in windows to be able to connect from any devices on the LAN
+https://learn.microsoft.com/en-us/windows/wsl/networking#accessing-a-wsl-2-distribution-from-your-local-area-network-lan
+
+```bash
+netsh interface portproxy add v4tov4 listenport=8080 listenaddress=0.0.0.0 connectport=8080 connectaddress=172.26.162.4
+```

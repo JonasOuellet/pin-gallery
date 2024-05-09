@@ -1,3 +1,4 @@
+$(() => {
 
 function getElemById<T>(id: string): T {
     let elem = document.getElementById(id);
@@ -234,80 +235,10 @@ class Collectionneur {
         window.addEventListener("mouseup", (event) => this.endMoving(event));
         window.addEventListener("mousemove", (event) => this.move(event));
 
-        $("#addnewitem").on("click", (event) => {
-            // https://stackoverflow.com/questions/49826266/nodejs-cannot-upload-file-using-multer-via-ajax
-           this.getImageFile()
-                .then((image) => {
-                    let formData = new FormData();
-                    formData.append("image", image, "newImage.png");
-                    $.ajax({
-                        url: "/item/create",
-                        data: formData,
-                        method: "POST",
-                        processData: false,
-                        contentType: false,
-                        success: (data) => {
-                            let span = getElemById<HTMLSpanElement>("itemcount");
-                            let newCount = Number(span.innerText) + 1;
-                            span.innerText = newCount.toString();
-
-                            let dialog = document.querySelector("#itemaddeddialog") as HTMLDialogElement;
-                            // clear old images
-                            let img = (dialog.querySelector("img") as HTMLImageElement);
-                            img.src = "";
-                            img.src = data.url;
-                            let btn = dialog.querySelector("#imgdialogok") as HTMLButtonElement;
-                            let btn2 = dialog.querySelector("#imgdialog2") as HTMLButtonElement;
-                            let p = dialog.querySelector("p") as HTMLParagraphElement;
-
-                            this.clearPhoto();
-                            this.clearSimilarImages();
-                            addNewImageElement(data.url, null, true);
-
-                            if (!isIndexValid && newCount >= 10) {
-                                // show the dialog that inform user that he can create the index.
-                                btn.innerText = "Creer maintenant";
-                                (btn2.style as any).display = null;
-                                btn2.innerText = "Creer plus tard"
-                                p.innerText = "Nouvelle item ajoute avec succes.  Il y assez d'item pour creer l'index.  Voulez vous creer l'index maintenant?"
-                                
-                                btn.onclick = () => {
-                                    createIndex();
-                                    dialog.close();
-                                }
-                                btn2.onclick = () => {
-                                    dialog.close();
-                                };
-
-                                dialog.showModal();
-
-                            } else {
-                                if (!isIndexValid) {
-                                    // show the dialog that inform the user that the elem has been added.
-                                    fetchIndexStatus();
-                                }
-                                btn.innerText = "Ok!";
-                                btn2.style.display = "none";
-                                p.innerText = "Nouvelle item ajoute avec succes.";
-
-                                btn.onclick = () => {
-                                    dialog.close();
-                                }
-                                dialog.showModal();
-                            }
-                        },
-                        error: (xhr, status, error) => {
-                            showDialog("Erreur", xhr.responseText);
-                        }
-                    })
-                }
-            )
-        });
-
         let indexSearch = $('#index_search');
         let indexSearchBtn = indexSearch[0];
         let fnUpdateText = () => {
-            indexSearchBtn.innerText = `RECHERCHER ${this.similarItemSearchCount} ITEMS SIMILAIRES`;
+            indexSearchBtn.innerText = `RECHERCHER ${this.similarItemSearchCount} DOUBLONS SIMILAIRES`;
         }
 
         try {
@@ -332,7 +263,6 @@ class Collectionneur {
 
         function removeContextMenu(event: JQuery.ContextMenuEvent) {
             customImageMenu(event, (_: string) => {
-                updateRecentlyAdded();
                 updateCount();
             });
         }
@@ -420,7 +350,7 @@ class Collectionneur {
                 formData.append("count", this.similarItemSearchCount.toString());
                 return new Promise((resolve, reject) => {
                     $.ajax({
-                        url: "/item/similarimage",
+                        url: "/duplicate/similarimage",
                         data: formData,
                         method: "POST",
                         processData: false,
@@ -592,26 +522,6 @@ function indexNotDeployed() {
 };
 
 
-function createIndex() {
-    uninitAddNewItem();
-    createIndexInProgress();
-    $.ajax({
-        type: "GET",
-        url: "/createindex",
-        dataType: 'json',
-        success: (data) => {
-            // do nothing for now already in progress
-            fetchIndexWithInterval(30_000);
-        },
-        error: (data) => {
-            console.log(data);
-            $("#indexstatus").text(`Une erreur est survenu: ${data.responseText}`);
-            $("#indexstatusbar").hide();
-        }
-    });
-}
-
-
 function updateState(data: {status: string}) {
     // handle operation first
     isIndexValid = false;
@@ -646,20 +556,7 @@ function updateState(data: {status: string}) {
         indexNotDeployed();
     }
     else if (data.status === "IndexDoesntExist") {
-        if ((data as any).remaining > 0) { 
-            $("#indexstatus").text(`Ajouter encore ${(data as any).remaining} items pour pouvoir creer l'index.`);
-            initAddNewItem();
-        }
-        else {
-            $("#indexstatus").text("L'index est pret a etre cree");
-
-            let btn = $("#indexactioncreate");
-            btn.show();
-            (btn.get(0) as HTMLElement).onclick = () => {
-                btn.hide();
-                createIndex();
-            }
-        }
+        alert("UNEXPECTED ERROR")
     }
     else if (data.status === "IndexValid") {
         indexValid();
@@ -671,7 +568,7 @@ function updateState(data: {status: string}) {
 function fetchIndexStatus() {
     $.ajax({
         type: "GET",
-        url: "/indexstatus",
+        url: "/dupindexstatus",
         dataType: "json",
         success: (data) => {
             updateState(data);
@@ -712,30 +609,11 @@ function addNewImageElement(url: string, elem: HTMLElement | null, insertAndRemo
 }
 
 
-function updateRecentlyAdded() {
-    let recentlyAdded = $("#recentlyadded");
-    recentlyAdded.children().remove();
-    recentlyAdded.each((idx, elem) => {
-        $.ajax({
-            type: "GET",
-            url: "/items/recentlyadded",
-            dataType: 'json',
-            success: (data) => {
-                for (let img of data.thumbnails) {
-                    addNewImageElement(img, elem, false);
-                }
-            },
-            error: (data) => {
-                console.error(data);
-            }
-        })
-    })
-}
 
 function updateCount() {
     $.ajax({
         type: "GET",
-        url: "/items/count",
+        url: "/duplicates/count",
         dataType: "json",
         success: (data) => {
             let span = getElemById<HTMLSpanElement>("itemcount");
@@ -749,7 +627,5 @@ function updateCount() {
 }
 
 
-$(() => {
-    updateRecentlyAdded();
     fetchIndexStatus();
 });

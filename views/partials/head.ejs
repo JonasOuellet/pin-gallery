@@ -5,6 +5,16 @@
 	<!-- Required meta tags -->
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+	<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+	<link rel="manifest" href="/site.webmanifest">
+	<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+	<meta name="msapplication-TileColor" content="#da532c">
+	<meta name="theme-color" content="#ffffff">
+
+
 	<!-- Roboto Font-->
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700" type="text/css">
 
@@ -14,6 +24,7 @@
 	<!-- Material design icon-->
 	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 	<link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+	<link rel="stylesheet" href="/css/main.css">
 	<script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
 
 	
@@ -21,4 +32,33 @@
 </head>
 
 <body>
-    <main style="padding: 60px;">
+	<div class="mdl-layout mdl-js-layout">
+		<header class="mdl-layout__header mdl-layout__header--scroll">
+			<div class="mdl-layout__header-row">
+				<span class="mdl-layout-title">Application du collectionneur</span>
+			</div>
+
+			<% if (typeof(user_logged_in) === 'undefined' || user_logged_in ) { %>
+				<div class="mdl-layout__tab-bar">
+					<a href="/" class="mdl-layout__tab <% if (typeof(header_index) !== 'undefined' && header_index == 0) { %> is-active <% } %>">Accueil</a>
+					<a href="/gallery" class="mdl-layout__tab <% if (typeof(header_index) !== 'undefined' && header_index == 1) { %> is-active <% } %>">Galerie</a>
+					<a href="/duplicate" class="mdl-layout__tab <% if (typeof(header_index) !== 'undefined' && header_index == 2) { %> is-active <% } %>">Doublons</a>
+					<a href="/duplicateSearch" class="mdl-layout__tab <% if (typeof(header_index) !== 'undefined' && header_index == 3) { %> is-active <% } %>">Rechercher parmis les doublons</a>
+				</div>
+			<% } %> 
+		</header>
+
+		<% if (typeof(user_logged_in) === 'undefined' || user_logged_in ) { %>
+			<div class="mdl-layout__drawer">
+				<nav class="mdl-navigation">
+				<a class="mdl-navigation__link" href="/">Accueil</a>
+				<a class="mdl-navigation__link" href="/gallery">Galerie</a>
+				<a class="mdl-navigation__link" href="/duplicate">Doublons</a>
+				<a class="mdl-navigation__link" href="/duplicateSearch">Rechercher parmis les doublons</a>
+				<a class="mdl-navigation__link" href="/similar/1">Afficher les semblables</a>
+				</nav>
+			</div>
+		<% } %> 
+
+		<main class="mdl-layout__content">
+			<div class="page-content" style="padding-left: 60px; padding-right: 60px; padding-top: 30px; padding-bottom: 20px;">

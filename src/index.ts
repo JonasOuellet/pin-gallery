@@ -34,7 +34,7 @@ const projectID = process.env.PROJECT_ID;
 const SIMILAR_ITEM_SEARCH_FIELD = "similarItem"
 
 // setup firestore
-// https://cloud.google.com/firestore/docs/emulator?hl=fr
+// https://cloud.google.com/firestore/docs/emulatorkjhl=fr
 // TODO: fill settings
 const db = new Firestore({
     projectId: projectID,
@@ -47,6 +47,8 @@ const storage = new Storage({
 const bucket = storage.bucket(projectID + "-collector");
 
 const indexHandler = new IndexHandler();
+const dupIndexHandler = new IndexHandler("collector-dup", "collector");
+
 
 app.use(
     session({
@@ -168,10 +170,20 @@ app.get('/', async (req, res) => {
     if (req.user && req.isAuthenticated()) {
         let user = db.doc(`Users/${(req.user as any).id}`);
         let data = await user.collection("items").count().get();
+        res.locals.header_index = 0;
         res.locals.nbitems = data.data().count;
         res.locals.similarCount = (await user.get()).get(SIMILAR_ITEM_SEARCH_FIELD) || 5;
         return res.render('pages/index');
     }
+    return res.redirect("/login");
+});
+
+
+app.get('/login', async (req, res) => {
+    if (req.user && req.isAuthenticated()) {
+        return res.redirect('/');
+    }
+    res.locals.user_logged_in = false;
     return res.render("pages/login");
 });
 
@@ -547,24 +559,50 @@ app.get('/items/read/:order/:count/:start?', async (req, res) => {
         }
         let user = adminUser.docs[0].data();
         let collections = db.doc(`Users/${user.id}`).collection("items");
-        // do not return any fields
-        let query = collections.select().orderBy("timestamp", req.params.order as any);
-        if (req.params.start) {
-            let doc = collections.doc(req.params.start);
-            const snapshot = await doc.get();
-            query = collections.startAfter(snapshot);
+
+        if (req.query.text) {
+            // do the sort here we don't have an index yet
+            let query = await collections.select("timestamp")
+                .where("text", "array-contains", req.query.text)
+                .get();
+                
+            if (req.params.order == 'asc') {
+                query.docs.sort((a, b) => {
+                    return a.get("timestamp").seconds - b.get("timestamp").seconds
+                })
+            } else {
+                query.docs.sort((a, b) => {
+                    return b.get("timestamp").seconds - a.get("timestamp").seconds
+                })
+            }
+
+            let urls: string[] = [];
+            for (let item of query.docs) {
+                urls.push(bucket.file(`${item.id}.png`).publicUrl());
+            }
+            return res.status(200).send({ images: urls});
+
+        } else {
+            // do not return any fields
+            let query = collections.select().orderBy("timestamp", req.params.order as any);
+            if (req.params.start) {
+                let doc = collections.doc(req.params.start);
+                const snapshot = await doc.get();
+                query = query.startAfter(snapshot);
+            }
+            let result = await query.limit(count).get();
+            let urls: string[] = [];
+            for (let item of result.docs) {
+                urls.push(bucket.file(`${item.id}.png`).publicUrl());
+            }
+            let start = undefined;
+            // check if we returned the number of document requested if so we can return more
+            if (urls.length && result.docs.length >= count) {
+                let last = result.docs[result.docs.length - 1];
+                start = last.id;
+            }
+            return res.status(200).send({ images: urls,  start: start});
         }
-        let result = await query.limit(count).get();
-        let urls: string[] = [];
-        for (let item of result.docs) {
-            urls.push(bucket.file(`${item.id}.png`).publicUrl());
-        }
-        let start = undefined;
-        if (urls.length) {
-            let last = result.docs[result.docs.length - 1];
-            start = last.id;
-        }
-        return res.status(200).send({ images: urls,  start: start});
     } catch (err) {
         console.log(err);
         return res.status(400).send('Error occured: ' + err);
@@ -643,16 +681,18 @@ app.get('/deployindex', async (req, res) => {
 
 app.get("/gallery", async (req, res) => {
     if (req.user && req.isAuthenticated()) {
+        res.locals.header_index = 1;
         return res.render('pages/gallery');
     }
-    return res.render("pages/login");
+    return res.redirect("/login");
 })
 
 app.get("/duplicate", async (req, res) => {
     if (req.user && req.isAuthenticated()) {
+        res.locals.header_index = 2;
         return res.render('pages/duplicate');
     }
-    return res.render("pages/login");
+    return res.redirect("/login");
 })
 
 app.get('/duplicates/read/:count/:start?', async (req, res) => {
@@ -667,7 +707,7 @@ app.get('/duplicates/read/:count/:start?', async (req, res) => {
         if (req.params.start) {
             let doc = collections.doc(req.params.start);
             const snapshot = await doc.get();
-            query = collections.startAfter(snapshot);
+            query = query.startAfter(snapshot);
         }
         let result = await query.limit(count).get();
         let urls: string[] = [];
@@ -675,7 +715,8 @@ app.get('/duplicates/read/:count/:start?', async (req, res) => {
             urls.push(bucket.file(`${item.id}.png`).publicUrl());
         }
         let start = undefined;
-        if (urls.length) {
+        // check if we returned the number of document requested if so we can return more
+        if (urls.length && result.docs.length >= count) {
             let last = result.docs[result.docs.length - 1];
             start = last.id;
         }
@@ -762,7 +803,7 @@ app.get("/item/:id", async (req, res) => {
            return res.status(400).send("Invalid item") ;
         }
     }
-    return res.render("pages/login");
+    return res.redirect("/login");
 })
 
 
@@ -810,8 +851,174 @@ app.get("/item/:id/similar/:count?", async (req, res) => {
 })
 
 
+app.get("/similar/:page?", async (req, res) => {
+    if (req.user && req.isAuthenticated()) {
+        // let user = db.doc(`Users/${(req.user as any).id}`);
+        let page = Math.max(1, parseInt(req.params.page as any) || 1);
+        res.locals.page_index = page;
+        return res.render('pages/similar');
+    }
+    return res.redirect("/login");
+})
+
+
+app.get("/duplicateSearch", async (req, res) => {
+    if (req.user && req.isAuthenticated()) {
+        let user = db.doc(`Users/${(req.user as any).id}`);
+        let data = await user.collection("duplicates").count().get();
+        res.locals.header_index = 3;
+        res.locals.nbitems = data.data().count;
+        res.locals.similarCount = (await user.get()).get(SIMILAR_ITEM_SEARCH_FIELD) || 5;
+        return res.render('pages/duplicateSearch');
+    }
+    return res.redirect("/login");
+});
+
+
+app.get("/dupindexstatus", async (req, res) => {
+    let user = req.user as User;
+    if (!req.user || req.isUnauthenticated()) {
+        return res.status(401).send("Unautorized.")
+    }
+
+    try {
+        let userDoc = db.doc(`Users/${user.id}`);
+        let userData = (await userDoc.get()).data() as User | undefined;
+        
+        // first check if there are operations
+        if (userData) {
+            if (userData.dupDeployOperation) {
+                // query google to see if the operation is completed. or in progress
+                if (await dupIndexHandler.checkDeployOperation(userData.dupDeployOperation)) {
+                    // remove the operation from the the user
+                    await userDoc.update({
+                        dupDeployOperation: null
+                    });
+                } else {
+                    return res.send({
+                        status:  IndexStatus[IndexStatus.IndexIsBeingDeployed]
+                    })
+                }
+            }
+            if (userData.dupUndeployOperation) {
+                // query google to see if the operation is completed. or in progress
+                if (await dupIndexHandler.checkUndeployOperation(userData.dupUndeployOperation)) {
+                    // remove the operation from the the user
+                    await userDoc.update({
+                        dupUndeployOperation: null
+                    });
+                } else {
+                    return res.send({
+                        status:  IndexStatus[IndexStatus.IndexIsBeingUndeployed]
+                    })
+                }
+            }
+        }
+
+        const [info, err] = await dupIndexHandler.getAiInfo();
+
+        if (err !== null) {
+            if (err === AiInfoErrType.IndexDoesntExist) {
+                // check how many image we have yet
+                let count = (await db.doc(`Users/${user.id}`)
+                    .collection("duplicates")
+                    .count()
+                    .get()
+                ).data().count;
+                
+                return res.send({
+                    currentItemCount: count,
+                    itemNeeded: ITEM_TO_BUILD_INDEX,
+                    remaining: Math.max(0, ITEM_TO_BUILD_INDEX - count),
+                    status: IndexStatus[IndexStatus.IndexDoesntExist]
+                });
+            }
+            if (err === AiInfoErrType.EndPointDoesntExist) {
+                
+            } 
+            else if (err === AiInfoErrType.IndexNotDeployed) {
+                // check if there is a task to deploy the index and check if it is finished
+                return res.status(200).send({
+                    status: IndexStatus[IndexStatus.IndexNotDeployed]
+                })
+            }
+        }
+
+        return res.send({
+            status: IndexStatus[IndexStatus.IndexValid]
+        })
+
+    } catch (err) {
+        return res.status(400).send({error: err})
+    }
+
+
+});
+
+
+app.get('/duplicates/count', async (req, res) => {
+    let user = req.user as User;
+    if (user === undefined || req.isUnauthenticated()) {
+        return res.status(401).send("unauthorized")
+    }
+
+    try {
+        let count = await db.doc(`Users/${user.id}`).collection("duplicates").count().get();
+        return res.send({"count": count.data().count});
+    } catch (err) {
+        return res.status(400).send(err);
+    }
+});
+
+
+app.post('/duplicate/similarimage', upload.single('image'), async (req, res) => {
+    let user = req.user as User;
+    if (!user || req.isUnauthenticated()) {
+        return res.status(400).send("Invalid user.");
+    }
+    
+    let file = req.file;
+    if (file === undefined) {
+        // TODO: handle error here
+        return res.status(400).send("File not defined.");
+    }
+
+    let count = 5;
+    try {
+        count = Math.min(50, Math.max(2, parseInt(req.body.count, 10)));
+    } catch {}
+    
+    let obj: any = {};
+    obj[SIMILAR_ITEM_SEARCH_FIELD] = count;
+    db.doc(`Users/${user.id}`).update(obj).catch((reason) => {
+        console.log("Couldn't update similar item count: ", reason)
+    });
+
+    try {
+        let result = await dupIndexHandler.findSimilarLocal(file.path, count);
+        let urls: {url: string, distance: number}[] = [];
+        for (let r of result) {
+            urls.push({
+                url: bucket.file(`${r.id}.png`).publicUrl(),
+                distance: r.distance
+            });
+        }
+        res.send({
+            results: urls
+        });
+
+    } catch (err) {
+        res.status(400).send(err);
+    }
+    finally {
+        fs.unlink(file.path, () => {});
+    }
+
+});
+
+
 async function main () {
-    await indexHandler.startPyCollector();
+    // await indexHandler.startPyCollector();
     const port = parseInt(process.env.PORT || "0") || 8080;
     app.listen(port, () => {
         console.log(`Listening on port ${port}`);
