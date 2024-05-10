@@ -13,7 +13,7 @@ import { FirestoreStore } from '@google-cloud/connect-firestore';
 import * as fs from 'fs';
 import * as path from "path";
 
-import { IndexHandler, AiInfoErrType } from './ai_index';
+import { IndexHandler, AiInfoErrType, getIndexUtil } from './ai_index';
 
 import { User, IndexStatus } from './types';
 
@@ -47,7 +47,7 @@ const storage = new Storage({
 const bucket = storage.bucket(projectID + "-collector");
 
 const indexHandler = new IndexHandler();
-const dupIndexHandler = new IndexHandler("collector-dup", "collector");
+const dupIndexHandler = new IndexHandler("collectordup");
 
 
 app.use(
@@ -771,6 +771,13 @@ app.get('/duplicate/delete/:id', async (req, res) => {
     if (user === undefined || req.isUnauthenticated()) {
         return res.status(401).send("unauthorized")
     }
+
+    try {
+        await dupIndexHandler.removeItem(req.params.id);
+    } catch (err) {
+        return res.status(400).send(err);
+    }
+
     // remove it from the db
     try {
         await db.doc(`Users/${user.id}`).collection("duplicates").doc(req.params.id).delete();
@@ -779,11 +786,11 @@ app.get('/duplicate/delete/:id', async (req, res) => {
     }
     
     try {
-        await bucket.file(`${req.params.id}.png`).delete({ignoreNotFound: false});
+        await bucket.file(`${req.params.id}.png`).delete({ignoreNotFound: true});
     } catch (err) {
         return res.status(400).send("Impossible de supprimer l'item du stockage.")
     }
-
+    
     return res.send("Item removed with success.")
 });
 
@@ -874,6 +881,44 @@ app.get("/duplicateSearch", async (req, res) => {
     return res.redirect("/login");
 });
 
+
+app.get('/deployindexdup', async (req, res) => {
+    let user = req.user as User;
+    if (user === undefined || req.isUnauthenticated()) {
+        return res.status(401).send("Unautorised");
+    }
+    try {
+        let result = await dupIndexHandler.deployIndex();
+        if (result !== null) {
+            // this is the name of the operation
+            let doc = db.doc(`Users/${user.id}`);
+            await doc.update( {
+                dupDeployOperation: result
+            });
+            return res.send();
+        }
+    } catch (err) {
+        return res.status(400).send("L'index est deja deploye ou est en cours d'annulation.  Veuillez reessayer plus tard.");
+    }
+
+})
+
+app.get('/undeployindexdup', async (req, res) => {
+    let user = req.user as User;
+    if (user === undefined || req.isUnauthenticated()) {
+        return res.status(401).send("Unautorised");
+    }
+    let result = await dupIndexHandler.undeployIndex();
+    if (result !== null) {
+        // this is the name of the operation
+        let doc = db.doc(`Users/${user.id}`);
+        await doc.update( {
+            dupUndeployOperation: result
+        });
+        return res.send();
+    }
+    return res.status(400).send("L'index est deja annule ou est en cours de deploiement.  Veuillez reessayer plus tard.");
+});
 
 app.get("/dupindexstatus", async (req, res) => {
     let user = req.user as User;
@@ -1018,7 +1063,7 @@ app.post('/duplicate/similarimage', upload.single('image'), async (req, res) => 
 
 
 async function main () {
-    // await indexHandler.startPyCollector();
+    await getIndexUtil().startPyCollector();
     const port = parseInt(process.env.PORT || "0") || 8080;
     app.listen(port, () => {
         console.log(`Listening on port ${port}`);

@@ -578,7 +578,7 @@ function deployIndex() {
 
 
 function indexNotDeployed() {
-    $("#indexstatus").text("L'index n'est pas deploye.  Veuillez deployer l'index avant de pouvoir ajouter des nouveaux items.");
+    $("#indexstatus").text("L'index n'est pas deploye.  Veuillez deployer l'index avant de pouvoir l'utiliser.");
     let btn = $("#indexactiondeploy");
     btn.show();
     (btn.get(0) as HTMLElement).onclick = () => {
