@@ -18,3 +18,5 @@ __pycache__
 
 ids.txt
 datapoints.bin
+dupids.txt
+dupdatapoints.bin

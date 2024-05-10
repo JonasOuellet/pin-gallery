@@ -53,33 +53,27 @@
     </div>
 </div>
 
-<dialog id="itemaddeddialog" class="mdl-dialog" style="width: 30%;">
-    <h2 id="dialogtitle" class="mdl-dialog__title">Succes</h2>
-    <div class="mdl-dialog__content">
-        <p></p>
-        <img style="max-width: 128px; max-height: 128px; margin: auto; display: block;">
-    </div>
-    <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
-        <button id="imgdialogok" type="button" class="mdl-button"></button>
-        <button id="imgdialog2" type="button" class="mdl-button"></button>
-    </div>
-</dialog>
-
-<dialog id="deploydialog" class="mdl-dialog" style="width: 30%;">
-    <h2 class="mdl-dialog__title">Index cree</h2>
-    <div class="mdl-dialog__content">
-        <p>Vous pouvez maintenant deployer l'index.</p>
-    </div>
-    <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
-        <button id="deploynow" type="button" class="mdl-button">Deployer maintenant</button>
-        <button id="deploylater" type="button" class="mdl-button">Deployer plus tard</button>
-    </div>
-</dialog>
-
-
 </div>
 </main>
 </div>
+
+
+<ul id="image_menu" class="mdl-menu mdl-menu--bottom-left mdl-js-menu" style="display: none;">
+    <li class="mdl-menu__item">Supprimer</li>
+  </ul>
+  
+  <dialog id="deletedialog" class="mdl-dialog" style="width: 30%;">
+      <h2 class="mdl-dialog__title">Supression</h2>
+      <div class="mdl-dialog__content">
+          <p>Etes-vous sur de vouloir supprimer cet item definitivement?</p>
+          <img style="max-width: 128px; max-height: 128px; margin: auto; display: block;">
+      </div>
+      <div class="mdl-dialog__actions mdl-dialog__actions--full-width">
+          <button type="button" class="mdl-button">Oui</button>
+          <button type="button" class="mdl-button">Non</button>
+      </div>
+  </dialog>
+  
 
 <%- include('../partials/simple_dialog.ejs') %>
 <%- include('../partials/image_menu.ejs') %>

@@ -33,8 +33,12 @@ def get_database():
     return FIRESTORE_DB
 
 
+def get_admin_user():
+    return get_database().document('Users/rTw4N7tjtaxOR6y0YC98')
+
+
 def get_item_collection():
-    return get_database().collection("Users/rTw4N7tjtaxOR6y0YC98/items")
+    return get_admin_user().collection("/items")
 
 
 class DownloadOrLocalImage:
