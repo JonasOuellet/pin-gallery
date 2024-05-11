@@ -38,7 +38,7 @@ def get_admin_user():
 
 
 def get_item_collection():
-    return get_admin_user().collection("/items")
+    return get_admin_user().collection("items")
 
 
 class DownloadOrLocalImage:
