@@ -21,7 +21,7 @@ def _find(
         np.array([vector]),
         n_neighbors=number
     )
-    strids =  core.load_ids()
+    strids = core.load_ids()
     return list(zip((strids[x] for x in ids[0]), distances[0].tolist()))
 
 
@@ -32,3 +32,33 @@ def find(
     
     with core.DownloadOrLocalImage(local_file_or_id) as filepath:
         return _find(filepath, number)
+
+
+def find_all():
+    weights = core.load_datapoints()
+    strids = core.load_ids()
+
+    nn = NearestNeighbors(n_jobs=-1)
+    nn.fit(weights)
+
+    distances, ids = nn.kneighbors(
+        weights,
+        n_neighbors=10
+    )
+
+    with open("test.txt", mode='w') as f:
+        for x, (idx, dist) in enumerate(zip(ids, distances)):
+            data = []
+            for i, d in zip(idx, dist):
+                if i == x:
+                    continue
+
+                if d > 1.0:
+                    break
+
+                data.append((strids[i], d))
+            if data:
+                f.write(f"{x}: {strids[x]}\n")
+                
+                for i, d in data:
+                    f.write(f"   {i} {d}\n")
