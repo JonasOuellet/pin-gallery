@@ -16,7 +16,8 @@ class ServeCommand(BaseCommand):
             "vectorize": self.vectorize,
             "vectorize-with-text": self.vectorize_with_text,
             "status": self.status_cmd,
-            "nearest-neighbors": self.nearest_neighbors
+            "nearest-neighbors": self.nearest_neighbors,
+            "vectorize-text": self.vectorize_text
         }
 
     def get_parser(self) -> ArgumentParser:
@@ -47,9 +48,12 @@ class ServeCommand(BaseCommand):
         file = request.get("file", None)
         if not file:
             return conn.sendall(json.dumps({"error": "File not specified"}).encode())
+        
+        # assume that this is a list of string
+        text = request.get("text", None)
 
         with core.DownloadOrLocalImage(file) as img:
-            result, _ = core_tf.vectorize_with_text(img)
+            result, _ = core_tf.vectorize_with_text(img, text)
 
         return conn.sendall(json.dumps({"vector": result.tolist()}).encode())
 
@@ -64,6 +68,17 @@ class ServeCommand(BaseCommand):
             result, texts = core_tf.vectorize_with_text(img)
 
         return conn.sendall(json.dumps({"vector": result.tolist(), "text": texts}).encode())
+
+    def vectorize_text(self, conn: socket.socket, request: dict[str, Any]):
+        from .. import core
+        text = request.get("text", None)
+        if not text:
+            return conn.sendall(json.dumps({"error": "No Text Specified"}).encode())
+        
+        result = core.encode_text(text)
+        if result is None:
+            return conn.sendall(json.dumps({"error": "Invalid text"}).encode())
+        return conn.sendall(json.dumps({"vector": result.tolist()}).encode())
 
     def process(self, conn: socket.socket):
         try:

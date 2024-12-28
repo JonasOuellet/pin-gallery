@@ -29,6 +29,21 @@
                 "REGION": "northamerica-northeast1",
                 // "USE_PYCOLLECTOR": "1"
             }
+        },
+        {
+            "name": "Run update dup index",
+            "program": "${workspaceFolder}/out/scripts/updateDupIndex.js",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "node",
+            "preLaunchTask": "npm: build",
+            "env": {
+                "PROJECT_ID": "macarons-410004",
+                "REGION": "northamerica-northeast1",
+                // "USE_PYCOLLECTOR": "1"
+            }
         }
     ]
 }

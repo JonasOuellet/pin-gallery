@@ -737,6 +737,14 @@ app.get("/duplicate/create/:id", async (req, res) => {
         let docRef = collections.doc(req.params.id)
         let doc = await docRef.get();
         if (doc.exists) {
+            let data = doc.data() || {};
+            try {
+                let vector = await dupIndexHandler.vectorizeLocalFile(req.params.id, data.text)
+                await dupIndexHandler.addDataPoint(req.params.id, vector);
+            } catch (err) {
+                return res.status(400).send(err);
+            }
+
             try {
                 await indexHandler.removeItem(req.params.id);
             } catch (err) {
@@ -751,7 +759,6 @@ app.get("/duplicate/create/:id", async (req, res) => {
             }
 
             let dupCollection = db.doc(`Users/${(req.user as any).id}`).collection("duplicates");
-            let data = doc.data() || {};
             // update timestamp
             data.timestamp = Timestamp.now()
             dupCollection.doc(req.params.id).set(data);

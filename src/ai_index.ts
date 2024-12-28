@@ -35,7 +35,8 @@ interface IPyCollectorCommand {
 
 interface IPyCollectorCommandVectorize {
     command: string,
-    file: string
+    file: string,
+    text?: string[]
 }
 
 
@@ -482,10 +483,11 @@ export class IndexHandler {
         return getIndexUtil().sendPyCollectorCommand(command);
     }
 
-    async vectorizeLocalFile(filename: string): Promise<number[]> {
+    async vectorizeLocalFile(filename: string, text?: string[]): Promise<number[]> {
         let command: IPyCollectorCommandVectorize = {
             command: "vectorize",
             file: filename,
+            text: text
         }
         return getIndexUtil().sendPyCollectorCommand(command)
             .then(async (result: {vector: number[]}) => {
@@ -538,7 +540,7 @@ export class IndexHandler {
         });
     }
 
-    async addDataPoint(id: string, vector: number[]) {
+    async addDataPoint(id: string, vector: number[]): Promise<void> {
         const [aiInfo, err] = await this.getUndeployedAiInfo();
         if (err) {
             return Promise.reject(this.getErrorText(err));
@@ -633,7 +635,7 @@ export class IndexHandler {
         });
     }
 
-    async readDataPoints(ids: string[]): Promise<string> {
+    async readDataPoint(id: string): Promise<number[]> {
         const [apiInfo, err] = await this.getAiInfo();
         if (err) {
             return Promise.reject(this.getErrorText(err));
@@ -647,7 +649,38 @@ export class IndexHandler {
             projectId: getIndexUtil()._project_id
         });
 
-        let stream = fs.createWriteStream("datapoints.txt");
+        try {
+            let [result] = await matchClient.readIndexDatapoints({
+                deployedIndexId: apiInfo.deployedIndex,
+                indexEndpoint: apiInfo.indexEndPoint,
+                ids: [id]
+            });
+
+            if (result.datapoints && result.datapoints.length > 0) {
+                let dp = result.datapoints[0].featureVector;
+                if (dp && dp.length > 0) {
+                    return dp;
+                }
+            }
+        } catch (err) {
+        }
+        return Promise.reject("Error reading id.")
+    }
+
+    async readDataPoints(ids: string[], callback: (datapoints: google.cloud.aiplatform.v1.IIndexDatapoint[]) => void): Promise<void> {
+        const [apiInfo, err] = await this.getAiInfo();
+        if (err) {
+            return Promise.reject(this.getErrorText(err));
+        }
+        if (apiInfo === null) {
+            return Promise.reject("Impossible de d'acceder a l'index pour le moment");
+        }
+
+        let matchClient = new ai.MatchServiceClient({
+            apiEndpoint: apiInfo.indexApiEndpoint,
+            projectId: getIndexUtil()._project_id
+        });
+
         let current = 0;
         while (current <= ids.length) {
             let end = Math.min(ids.length, current + 1000);
@@ -658,12 +691,19 @@ export class IndexHandler {
             });
             current += 1000;
             if (result.datapoints) {
-                for (let data of result.datapoints) {
-                    let towrite = {id: data.datapointId, vector: data.featureVector};
-                    stream.write(JSON.stringify(towrite) + "\n");
-                }
+                callback(result.datapoints);
             }
         }
+
+    }
+
+    async writeDataPointsToFile(ids: string[]): Promise<string> {
+        let stream = fs.createWriteStream("datapoints.txt");
+        this.readDataPoints(ids, (datapoints) => {
+            for (let data of datapoints) {
+                stream.write(JSON.stringify({id: data.datapointId, vector: data.featureVector}, null, 4));
+            }
+        });
         stream.close();
         return "datapoints.txt";
     }
