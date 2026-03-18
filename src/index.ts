@@ -28,6 +28,8 @@ app.set("views", "./views");
 
 // Set up static routes for hosted libraries.
 app.use(express.static("./static"));
+app.use("/css/material.indigo-pink.min.css", express.static("./node_modules/material-design-lite/dist/material.indigo-pink.min.css"))
+app.use("/material.min.js", express.static("./node_modules/material-design-lite/dist/material.min.js"))
 
 const ITEM_TO_BUILD_INDEX = 10;
 const projectID = process.env.PROJECT_ID;
